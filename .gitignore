@@ -1,0 +1,24 @@
+# 后端忽略
+agentbox-platform/target/
+agentbox-platform/.idea/
+agentbox-platform/*.iml
+agentbox-platform/.springBeans
+agentbox-platform/.mvn/
+agentbox-platform/mvnw
+agentbox-platform/mvnw.cmd
+agentbox-platform/HELP.md
+
+# 前端忽略
+agentbox-frontend/node_modules/
+agentbox-frontend/dist/
+agentbox-frontend/.vite/
+agentbox-frontend/.env.local
+agentbox-frontend/.env.production.local
+
+# 系统文件
+.DS_Store
+*.log
+.idea/
+.vscode/
+*.swp
+*.swo
