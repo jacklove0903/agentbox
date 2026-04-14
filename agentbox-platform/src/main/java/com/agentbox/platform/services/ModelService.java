@@ -1,25 +1,28 @@
 package com.agentbox.platform.services;
 
 import com.agentbox.platform.dto.ModelInfo;
+import com.agentbox.platform.models.Model;
+import com.agentbox.platform.repositories.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class ModelService {
 
+    @Autowired
+    private ModelMapper modelMapper;
+
     public List<ModelInfo> getAvailableModels() {
-        ModelInfo ernie = new ModelInfo();
-        ernie.setId("ernie-4.0");
-        ernie.setName("Ernie 4.0");
-        ernie.setIcon("ernie-icon.png");
-
-        ModelInfo tongyi = new ModelInfo();
-        tongyi.setId("tongyi-qianwen-2.5");
-        tongyi.setName("Tongyi Qianwen 2.5");
-        tongyi.setIcon("tongyi-icon.png");
-
-        return Arrays.asList(ernie, tongyi);
+        List<Model> models = modelMapper.selectList(null);
+        return models.stream().map(model -> {
+            ModelInfo info = new ModelInfo();
+            info.setId(model.getId());
+            info.setName(model.getName());
+            info.setIcon(model.getIcon());
+            return info;
+        }).collect(Collectors.toList());
     }
 }

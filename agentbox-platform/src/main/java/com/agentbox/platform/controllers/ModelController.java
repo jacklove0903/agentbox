@@ -21,7 +21,7 @@ public class ModelController {
     @Autowired
     private ChatModel chatModel;
 
-    @GetMapping
+    @GetMapping("/getmodels")
     public ResponseEntity<List<ModelInfo>> getModels() {
         List<ModelInfo> models = modelService.getAvailableModels();
         return ResponseEntity.ok(models);

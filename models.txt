@@ -1,0 +1,25 @@
+国内LLM供应商及常用模型列表：
+
+1. 百度 (Baidu)
+   - 文心一言 (Ernie): Ernie-3.5, Ernie-4.0, Ernie-Speed
+
+2. 腾讯 (Tencent)
+   - 混元 (Hunyuan): Hunyuan-Turbo, Hunyuan-Large, Hunyuan-Standard
+
+3. 阿里云 (Alibaba Cloud)
+   - 通义千问 (Qwen): Qwen-7B, Qwen-14B, Qwen-Max, Qwen-Turbo
+
+4. 华为 (Huawei)
+   - 盘古 (Pangu): Pangu-3.0, Pangu-3.5
+
+5. 字节跳动 (ByteDance)
+   - 豆包 (Doubao): Doubao-lite, Doubao-pro, Doubao-vision
+
+6. 科大讯飞 (iFlytek)
+   - 星火 (Spark): Spark-3.0, Spark-4.0, Spark-Max
+
+7. 智谱AI (Zhipu AI)
+   - ChatGLM: ChatGLM-3, ChatGLM-4, GLM-4-Plus
+
+8. 商汤科技 (SenseTime)
+   - SenseNova: SenseNova-5.0, SenseNova-5.5
