@@ -5,7 +5,11 @@ import { Globe, ImagePlus, Wand2, Image, Paperclip, Send, Maximize2, Copy, Loade
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ChatInputProps {
-  onSendMessage: (message: string) => void;
+  onSendMessage: (params: {
+    message: string;
+    modelIds: string[];
+    options: { webSearch: boolean; imageGen: boolean };
+  }) => Promise<void> | void;
   modelIds: string[];
 }
 
@@ -23,34 +27,15 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
     setError(null);
 
     try {
-      // 调用后端API发送消息
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      await onSendMessage({
+        message: message.trim(),
+        modelIds,
+        options: {
+          webSearch: webSearchEnabled,
+          imageGen: imageGenEnabled,
         },
-        body: JSON.stringify({
-          message: message.trim(),
-          modelIds,
-          options: {
-            webSearch: webSearchEnabled,
-            imageGen: imageGenEnabled,
-          },
-        }),
       });
-
-      if (!response.ok) {
-        throw new Error('API request failed');
-      }
-
-      const data = await response.json();
-      
-      // 调用回调函数处理响应
-      onSendMessage(message);
       setMessage("");
-      
-      // 这里可以处理API返回的响应数据
-      console.log('API Response:', data);
     } catch (err) {
       console.error('Error sending message:', err);
       setError('发送失败，请重试');
