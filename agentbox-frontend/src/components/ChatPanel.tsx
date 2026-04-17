@@ -25,12 +25,19 @@ interface ChatPanelProps {
   modelName: string;
   modelIcon: string;
   messages?: Message[];
+  active?: boolean;
+  onActivate?: () => void;
+  onModelChange?: (modelId: string) => void;
 }
 
 export function ChatPanel({
+  modelId,
   modelName,
   modelIcon,
   messages = [],
+  active = false,
+  onActivate,
+  onModelChange,
 }: ChatPanelProps) {
   const [grouped, setGrouped] = useState<Record<string, ModelInfo[]>[]>([]);
 
@@ -56,7 +63,17 @@ export function ChatPanel({
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-white/70 backdrop-blur-sm rounded-xl border border-white/60 shadow-sm overflow-hidden">
+    <div
+      className={`relative h-full min-h-0 min-w-0 flex flex-col bg-white/70 backdrop-blur-sm rounded-xl border shadow-sm overflow-hidden transition-colors focus-visible:outline-none ${
+        active
+          ? "border-sky-400/70 ring-2 ring-sky-300/70 z-10"
+          : "border-white/60 hover:border-gray-200 z-0"
+      }`}
+      role="group"
+      tabIndex={0}
+      onPointerDownCapture={() => onActivate?.()}
+      onFocus={() => onActivate?.()}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100/50">
         <DropdownMenu>
@@ -79,7 +96,10 @@ export function ChatPanel({
                   {models.map((model) => (
                     <DropdownMenuItem
                       key={`${provider}-${model.id}`}
-                      className="flex items-center gap-2 pl-4"
+                      onSelect={() => onModelChange?.(model.id)}
+                      className={`flex items-center gap-2 pl-4 ${
+                        model.id === modelId ? "bg-accent" : ""
+                      }`}
                     >
                       <img
                         src={model.icon}
@@ -112,7 +132,7 @@ export function ChatPanel({
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4">
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center text-gray-400">

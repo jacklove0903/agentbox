@@ -12,6 +12,8 @@ agentbox-platform/HELP.md
 agentbox-frontend/node_modules/
 agentbox-frontend/dist/
 agentbox-frontend/.vite/
+agentbox-frontend/.next/
+agentbox-frontend/tsconfig.tsbuildinfo
 agentbox-frontend/.env.local
 agentbox-frontend/.env.production.local
 

@@ -9,6 +9,7 @@ import {
   Image,
   Languages,
   Globe,
+  Sparkles,
   FileText,
   MessageSquare,
   User,
@@ -83,16 +84,17 @@ export function Sidebar({
       {/* Header with Logo */}
       <div className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img
-            src="https://ext.same-assets.com/2425995810/2396580476.svg"
-            alt="ChatHub Logo"
-            className="w-6 h-6"
-          />
-          <img
-            src="https://ext.same-assets.com/2425995810/2218609143.svg"
-            alt="ChatHub"
-            className={`h-5 transition-opacity ${collapsed ? "opacity-0 w-0" : "opacity-100"}`}
-          />
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 via-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-sm">
+            <Sparkles className="w-4.5 h-4.5 text-white" />
+          </div>
+          <div className={`transition-opacity ${collapsed ? "opacity-0 w-0" : "opacity-100"}`}>
+            <div className="text-sm font-semibold tracking-tight text-gray-900 leading-none">
+              AgentBox
+            </div>
+            <div className="text-[11px] text-gray-400 leading-none mt-0.5">
+              All‑in‑one chat
+            </div>
+          </div>
         </div>
         <button
           type="button"
