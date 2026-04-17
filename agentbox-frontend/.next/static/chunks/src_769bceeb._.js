@@ -258,47 +258,45 @@ __turbopack_context__.s({
 });
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$module__evaluation$3e$__ = __turbopack_context__.i("[project]/node_modules/same-runtime/dist/jsx-dev-runtime.js [app-client] (ecmascript) <module evaluation>");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__ = __turbopack_context__.i("[project]/node_modules/same-runtime/dist/jsx-dev-runtime.js [app-client] (ecmascript) <locals>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/dist/compiled/react/index.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__ = __turbopack_context__.i("[project]/node_modules/lucide-react/dist/esm/icons/chevron-down.js [app-client] (ecmascript) <export default as ChevronDown>");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$share$2d$2$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Share2$3e$__ = __turbopack_context__.i("[project]/node_modules/lucide-react/dist/esm/icons/share-2.js [app-client] (ecmascript) <export default as Share2>");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$copy$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Copy$3e$__ = __turbopack_context__.i("[project]/node_modules/lucide-react/dist/esm/icons/copy.js [app-client] (ecmascript) <export default as Copy>");
 var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$dropdown$2d$menu$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/components/ui/dropdown-menu.tsx [app-client] (ecmascript)");
+;
+var _s = __turbopack_context__.k.signature();
 "use client";
 ;
 ;
 ;
-const availableModels = [
-    {
-        id: "gpt-5.4",
-        name: "GPT-5.4",
-        icon: "https://ext.same-assets.com/2425995810/1034974614.png"
-    },
-    {
-        id: "gpt-5.4-thinking",
-        name: "GPT-5.4 Thinking",
-        icon: "https://ext.same-assets.com/2425995810/1034974614.png"
-    },
-    {
-        id: "claude-sonnet-4.6",
-        name: "Claude Sonnet 4.6",
-        icon: "https://ext.same-assets.com/2425995810/232058226.png"
-    },
-    {
-        id: "gemini-3.1-pro",
-        name: "Gemini 3.1 Pro",
-        icon: "https://ext.same-assets.com/2425995810/2254660124.png"
-    },
-    {
-        id: "gemini-3-flash",
-        name: "Gemini 3 Flash",
-        icon: "https://ext.same-assets.com/2425995810/2254660124.png"
-    },
-    {
-        id: "grok-4.1-fast",
-        name: "Grok 4.1 Fast",
-        icon: "https://ext.same-assets.com/2425995810/497172073.png"
-    }
-];
 function ChatPanel({ modelName, modelIcon, messages = [] }) {
+    _s();
+    const [grouped, setGrouped] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])([]);
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
+        "ChatPanel.useEffect": ()=>{
+            const cached = localStorage.getItem("groupedModels");
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    setGrouped(parsed);
+                } catch (error) {
+                    console.error("Failed to parse cached data:", error);
+                    localStorage.removeItem("groupedModels");
+                }
+            } else {
+                fetch("http://localhost:8080/api/models/getmodelmap").then({
+                    "ChatPanel.useEffect": (response)=>response.json()
+                }["ChatPanel.useEffect"]).then({
+                    "ChatPanel.useEffect": (data)=>{
+                        setGrouped(data);
+                        localStorage.setItem("groupedModels", JSON.stringify(data));
+                    }
+                }["ChatPanel.useEffect"]).catch({
+                    "ChatPanel.useEffect": (error)=>console.error("Failed to fetch models:", error)
+                }["ChatPanel.useEffect"]);
+            }
+        }
+    }["ChatPanel.useEffect"], []);
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
         className: "h-full flex flex-col bg-white/70 backdrop-blur-sm rounded-xl border border-white/60 shadow-sm overflow-hidden",
         children: [
@@ -316,7 +314,7 @@ function ChatPanel({ modelName, modelIcon, messages = [] }) {
                                         className: "w-5 h-5 rounded"
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/ChatPanel.tsx",
-                                        lineNumber: 43,
+                                        lineNumber: 64,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("span", {
@@ -324,59 +322,79 @@ function ChatPanel({ modelName, modelIcon, messages = [] }) {
                                         children: modelName
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/ChatPanel.tsx",
-                                        lineNumber: 44,
+                                        lineNumber: 65,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__["ChevronDown"], {
                                         className: "w-4 h-4 text-gray-400"
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/ChatPanel.tsx",
-                                        lineNumber: 45,
+                                        lineNumber: 68,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/components/ChatPanel.tsx",
-                                lineNumber: 42,
+                                lineNumber: 63,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$dropdown$2d$menu$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["DropdownMenuContent"], {
                                 align: "start",
-                                className: "w-48",
-                                children: availableModels.map((model)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$dropdown$2d$menu$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["DropdownMenuItem"], {
-                                        className: "flex items-center gap-2",
+                                className: "w-64 max-h-80 overflow-y-auto",
+                                children: grouped.map((group, index)=>{
+                                    const provider = Object.keys(group)[0];
+                                    const models = Object.values(group)[0];
+                                    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
                                         children: [
-                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("img", {
-                                                src: model.icon,
-                                                alt: model.name,
-                                                className: "w-4 h-4 rounded"
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
+                                                className: "px-3 py-2 text-xs font-semibold text-gray-500 uppercase border-b border-gray-100",
+                                                children: provider
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/ChatPanel.tsx",
-                                                lineNumber: 50,
-                                                columnNumber: 17
+                                                lineNumber: 76,
+                                                columnNumber: 19
                                             }, this),
-                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("span", {
-                                                children: model.name
-                                            }, void 0, false, {
-                                                fileName: "[project]/src/components/ChatPanel.tsx",
-                                                lineNumber: 51,
-                                                columnNumber: 17
-                                            }, this)
+                                            models.map((model)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$dropdown$2d$menu$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["DropdownMenuItem"], {
+                                                    className: "flex items-center gap-2 pl-4",
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("img", {
+                                                            src: model.icon,
+                                                            alt: model.name,
+                                                            className: "w-4 h-4 rounded"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/components/ChatPanel.tsx",
+                                                            lineNumber: 84,
+                                                            columnNumber: 23
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("span", {
+                                                            children: model.name
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/components/ChatPanel.tsx",
+                                                            lineNumber: 89,
+                                                            columnNumber: 23
+                                                        }, this)
+                                                    ]
+                                                }, `${provider}-${model.id}`, true, {
+                                                    fileName: "[project]/src/components/ChatPanel.tsx",
+                                                    lineNumber: 80,
+                                                    columnNumber: 21
+                                                }, this))
                                         ]
-                                    }, model.id, true, {
+                                    }, index, true, {
                                         fileName: "[project]/src/components/ChatPanel.tsx",
-                                        lineNumber: 49,
-                                        columnNumber: 15
-                                    }, this))
+                                        lineNumber: 75,
+                                        columnNumber: 17
+                                    }, this);
+                                })
                             }, void 0, false, {
                                 fileName: "[project]/src/components/ChatPanel.tsx",
-                                lineNumber: 47,
+                                lineNumber: 70,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/ChatPanel.tsx",
-                        lineNumber: 41,
+                        lineNumber: 62,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
@@ -389,12 +407,12 @@ function ChatPanel({ modelName, modelIcon, messages = [] }) {
                                     className: "w-4 h-4"
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/ChatPanel.tsx",
-                                    lineNumber: 62,
+                                    lineNumber: 103,
                                     columnNumber: 13
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/components/ChatPanel.tsx",
-                                lineNumber: 58,
+                                lineNumber: 99,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("button", {
@@ -404,24 +422,24 @@ function ChatPanel({ modelName, modelIcon, messages = [] }) {
                                     className: "w-4 h-4"
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/ChatPanel.tsx",
-                                    lineNumber: 68,
+                                    lineNumber: 109,
                                     columnNumber: 13
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/components/ChatPanel.tsx",
-                                lineNumber: 64,
+                                lineNumber: 105,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/ChatPanel.tsx",
-                        lineNumber: 57,
+                        lineNumber: 98,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/components/ChatPanel.tsx",
-                lineNumber: 40,
+                lineNumber: 61,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
@@ -437,7 +455,7 @@ function ChatPanel({ modelName, modelIcon, messages = [] }) {
                                 className: "w-12 h-12 rounded-xl mx-auto mb-3 opacity-50"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/ChatPanel.tsx",
-                                lineNumber: 78,
+                                lineNumber: 119,
                                 columnNumber: 15
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("p", {
@@ -448,18 +466,18 @@ function ChatPanel({ modelName, modelIcon, messages = [] }) {
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/components/ChatPanel.tsx",
-                                lineNumber: 83,
+                                lineNumber: 124,
                                 columnNumber: 15
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/ChatPanel.tsx",
-                        lineNumber: 77,
+                        lineNumber: 118,
                         columnNumber: 13
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/components/ChatPanel.tsx",
-                    lineNumber: 76,
+                    lineNumber: 117,
                     columnNumber: 11
                 }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
                     className: "space-y-4",
@@ -472,36 +490,37 @@ function ChatPanel({ modelName, modelIcon, messages = [] }) {
                                     children: message.content
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/ChatPanel.tsx",
-                                    lineNumber: 100,
+                                    lineNumber: 145,
                                     columnNumber: 19
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/components/ChatPanel.tsx",
-                                lineNumber: 93,
+                                lineNumber: 138,
                                 columnNumber: 17
                             }, this)
                         }, `message-${message.role}-${index}`, false, {
                             fileName: "[project]/src/components/ChatPanel.tsx",
-                            lineNumber: 89,
+                            lineNumber: 132,
                             columnNumber: 15
                         }, this))
                 }, void 0, false, {
                     fileName: "[project]/src/components/ChatPanel.tsx",
-                    lineNumber: 87,
+                    lineNumber: 130,
                     columnNumber: 11
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/components/ChatPanel.tsx",
-                lineNumber: 74,
+                lineNumber: 115,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/components/ChatPanel.tsx",
-        lineNumber: 38,
+        lineNumber: 59,
         columnNumber: 5
     }, this);
 }
+_s(ChatPanel, "JL7FYLJL3Mz1RFCgwCUbCyU1UUc=");
 _c = ChatPanel;
 var _c;
 __turbopack_context__.k.register(_c, "ChatPanel");
@@ -1765,61 +1784,25 @@ const tools = [
         icon: __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$globe$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Globe$3e$__["Globe"]
     }
 ];
-const models = [
-    {
-        id: "ernie-4.0",
-        name: "文心一言 4.0",
-        icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-    },
-    {
-        id: "tongyi-qianwen-2.5",
-        name: "通义千问 2.5",
-        icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-    },
-    {
-        id: "spark-4.0",
-        name: "讯飞星火 4.0",
-        icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-    },
-    {
-        id: "glm-4",
-        name: "智谱清言 GLM-4",
-        icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-    },
-    {
-        id: "doubao-3.0",
-        name: "豆包 3.0",
-        icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-    },
-    {
-        id: "hunyuan-2.0",
-        name: "混元大模型 2.0",
-        icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-    },
-    {
-        id: "internlm-2.5",
-        name: "书生浦语 2.5",
-        icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-    },
-    {
-        id: "tiangong-3.0",
-        name: "天工 3.0",
-        icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-    },
-    {
-        id: "qwen-3.5",
-        name: "通义千问 Qwen 3.5",
-        icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-    },
-    {
-        id: "kimi-2.0",
-        name: "Kimi 2.0",
-        icon: "https://ext.same-assets.com/2425995810/2836578580.png"
-    }
-];
 function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle, collapsed, onToggleCollapse }) {
     _s();
     const [showAllModels, setShowAllModels] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [models, setModels] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])([]);
+    // Fetch models from the backend API
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
+        "Sidebar.useEffect": ()=>{
+            async function fetchModels() {
+                try {
+                    const response = await fetch("http://localhost:8080/api/models/getmodels");
+                    const data = await response.json();
+                    setModels(data);
+                } catch (error) {
+                    console.error("Error fetching models:", error);
+                }
+            }
+            fetchModels();
+        }
+    }["Sidebar.useEffect"], []);
     const displayedModels = showAllModels ? models : models.slice(0, 6);
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
         className: `h-full bg-white/95 backdrop-blur-sm border-r border-gray-100 flex flex-col transition-all duration-300 ${collapsed ? "w-16" : "w-64"}`,
@@ -1836,7 +1819,7 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                 className: "w-6 h-6"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/SideBar.tsx",
-                                lineNumber: 75,
+                                lineNumber: 86,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("img", {
@@ -1845,13 +1828,13 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                 className: `h-5 transition-opacity ${collapsed ? "opacity-0 w-0" : "opacity-100"}`
                             }, void 0, false, {
                                 fileName: "[project]/src/components/SideBar.tsx",
-                                lineNumber: 80,
+                                lineNumber: 91,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/SideBar.tsx",
-                        lineNumber: 74,
+                        lineNumber: 85,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("button", {
@@ -1862,18 +1845,18 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                             className: `w-4 h-4 transition-transform ${collapsed ? "rotate-180" : ""}`
                         }, void 0, false, {
                             fileName: "[project]/src/components/SideBar.tsx",
-                            lineNumber: 91,
+                            lineNumber: 102,
                             columnNumber: 11
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/src/components/SideBar.tsx",
-                        lineNumber: 86,
+                        lineNumber: 97,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/components/SideBar.tsx",
-                lineNumber: 73,
+                lineNumber: 84,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$scroll$2d$area$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["ScrollArea"], {
@@ -1892,12 +1875,12 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                             children: "A"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/SideBar.tsx",
-                                            lineNumber: 100,
+                                            lineNumber: 111,
                                             columnNumber: 15
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/SideBar.tsx",
-                                        lineNumber: 99,
+                                        lineNumber: 110,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("span", {
@@ -1905,13 +1888,13 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                         children: "All-In-One"
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/SideBar.tsx",
-                                        lineNumber: 102,
+                                        lineNumber: 113,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/components/SideBar.tsx",
-                                lineNumber: 98,
+                                lineNumber: 109,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
@@ -1928,28 +1911,28 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                                     className: `w-1.5 h-4 rounded-sm ${selectedLayout === option.cols ? "bg-neutral-800" : "bg-gray-300"}`
                                                 }, `${option.id}-${i}`, false, {
                                                     fileName: "[project]/src/components/SideBar.tsx",
-                                                    lineNumber: 120,
+                                                    lineNumber: 131,
                                                     columnNumber: 21
                                                 }, this))
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/SideBar.tsx",
-                                            lineNumber: 118,
+                                            lineNumber: 129,
                                             columnNumber: 17
                                         }, this)
                                     }, option.id, false, {
                                         fileName: "[project]/src/components/SideBar.tsx",
-                                        lineNumber: 108,
+                                        lineNumber: 119,
                                         columnNumber: 15
                                     }, this))
                             }, void 0, false, {
                                 fileName: "[project]/src/components/SideBar.tsx",
-                                lineNumber: 106,
+                                lineNumber: 117,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/SideBar.tsx",
-                        lineNumber: 97,
+                        lineNumber: 108,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
@@ -1960,7 +1943,7 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                 children: "Tools"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/SideBar.tsx",
-                                lineNumber: 135,
+                                lineNumber: 146,
                                 columnNumber: 11
                             }, this),
                             tools.map((tool)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("button", {
@@ -1971,26 +1954,26 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                             className: "w-5 h-5 text-gray-400"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/SideBar.tsx",
-                                            lineNumber: 144,
+                                            lineNumber: 155,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("span", {
                                             children: tool.name
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/SideBar.tsx",
-                                            lineNumber: 145,
+                                            lineNumber: 156,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, tool.id, true, {
                                     fileName: "[project]/src/components/SideBar.tsx",
-                                    lineNumber: 139,
+                                    lineNumber: 150,
                                     columnNumber: 13
                                 }, this))
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/SideBar.tsx",
-                        lineNumber: 134,
+                        lineNumber: 145,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
@@ -2001,7 +1984,7 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                 children: "Models"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/SideBar.tsx",
-                                lineNumber: 152,
+                                lineNumber: 163,
                                 columnNumber: 11
                             }, this),
                             displayedModels.map((model)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("button", {
@@ -2015,20 +1998,20 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                             className: "w-5 h-5 rounded"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/SideBar.tsx",
-                                            lineNumber: 166,
+                                            lineNumber: 177,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("span", {
                                             children: model.name
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/SideBar.tsx",
-                                            lineNumber: 167,
+                                            lineNumber: 178,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, model.id, true, {
                                     fileName: "[project]/src/components/SideBar.tsx",
-                                    lineNumber: 156,
+                                    lineNumber: 167,
                                     columnNumber: 13
                                 }, this)),
                             !showAllModels && models.length > 6 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("button", {
@@ -2038,19 +2021,19 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                 children: "Show All"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/SideBar.tsx",
-                                lineNumber: 172,
+                                lineNumber: 183,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/SideBar.tsx",
-                        lineNumber: 151,
+                        lineNumber: 162,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/components/SideBar.tsx",
-                lineNumber: 95,
+                lineNumber: 106,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
@@ -2061,7 +2044,7 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                         children: "Sign up"
                     }, void 0, false, {
                         fileName: "[project]/src/components/SideBar.tsx",
-                        lineNumber: 185,
+                        lineNumber: 196,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$button$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Button"], {
@@ -2070,13 +2053,13 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                         children: "Sign in"
                     }, void 0, false, {
                         fileName: "[project]/src/components/SideBar.tsx",
-                        lineNumber: 188,
+                        lineNumber: 199,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/components/SideBar.tsx",
-                lineNumber: 184,
+                lineNumber: 195,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
@@ -2094,30 +2077,30 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                             className: "w-5 h-5"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/SideBar.tsx",
-                                            lineNumber: 202,
+                                            lineNumber: 213,
                                             columnNumber: 17
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/SideBar.tsx",
-                                        lineNumber: 201,
+                                        lineNumber: 212,
                                         columnNumber: 15
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/SideBar.tsx",
-                                    lineNumber: 200,
+                                    lineNumber: 211,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$tooltip$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["TooltipContent"], {
                                     children: "Documents"
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/SideBar.tsx",
-                                    lineNumber: 205,
+                                    lineNumber: 216,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/SideBar.tsx",
-                            lineNumber: 199,
+                            lineNumber: 210,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$tooltip$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Tooltip"], {
@@ -2131,30 +2114,30 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                             className: "w-5 h-5"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/SideBar.tsx",
-                                            lineNumber: 210,
+                                            lineNumber: 221,
                                             columnNumber: 17
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/SideBar.tsx",
-                                        lineNumber: 209,
+                                        lineNumber: 220,
                                         columnNumber: 15
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/SideBar.tsx",
-                                    lineNumber: 208,
+                                    lineNumber: 219,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$tooltip$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["TooltipContent"], {
                                     children: "Support"
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/SideBar.tsx",
-                                    lineNumber: 213,
+                                    lineNumber: 224,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/SideBar.tsx",
-                            lineNumber: 207,
+                            lineNumber: 218,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$tooltip$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Tooltip"], {
@@ -2168,30 +2151,30 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                             className: "w-5 h-5"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/SideBar.tsx",
-                                            lineNumber: 218,
+                                            lineNumber: 229,
                                             columnNumber: 17
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/SideBar.tsx",
-                                        lineNumber: 217,
+                                        lineNumber: 228,
                                         columnNumber: 15
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/SideBar.tsx",
-                                    lineNumber: 216,
+                                    lineNumber: 227,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$tooltip$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["TooltipContent"], {
                                     children: "Profile"
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/SideBar.tsx",
-                                    lineNumber: 221,
+                                    lineNumber: 232,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/SideBar.tsx",
-                            lineNumber: 215,
+                            lineNumber: 226,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$tooltip$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Tooltip"], {
@@ -2205,51 +2188,51 @@ function Sidebar({ selectedLayout, onLayoutChange, selectedModels, onModelToggle
                                             className: "w-5 h-5"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/SideBar.tsx",
-                                            lineNumber: 226,
+                                            lineNumber: 237,
                                             columnNumber: 17
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/SideBar.tsx",
-                                        lineNumber: 225,
+                                        lineNumber: 236,
                                         columnNumber: 15
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/SideBar.tsx",
-                                    lineNumber: 224,
+                                    lineNumber: 235,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$tooltip$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["TooltipContent"], {
                                     children: "Settings"
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/SideBar.tsx",
-                                    lineNumber: 229,
+                                    lineNumber: 240,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/SideBar.tsx",
-                            lineNumber: 223,
+                            lineNumber: 234,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/components/SideBar.tsx",
-                    lineNumber: 198,
+                    lineNumber: 209,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/components/SideBar.tsx",
-                lineNumber: 197,
+                lineNumber: 208,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/components/SideBar.tsx",
-        lineNumber: 67,
+        lineNumber: 78,
         columnNumber: 5
     }, this);
 }
-_s(Sidebar, "N7iIS2KXcJuPa1WFtzvj2DXaqlQ=");
+_s(Sidebar, "Nmsykqs0oQaoo2j/zJtaefXTMMU=");
 _c = Sidebar;
 var _c;
 __turbopack_context__.k.register(_c, "Sidebar");
@@ -2280,28 +2263,36 @@ var _s = __turbopack_context__.k.signature();
 ;
 ;
 ;
-const defaultModels = [
-    {
-        id: "ernie-4.0",
-        name: "文心一言 4.0",
-        icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-    },
-    {
-        id: "tongyi-qianwen-2.5",
-        name: "通义千问 2.5",
-        icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-    }
-];
 function Home() {
     _s();
     const [sidebarCollapsed, setSidebarCollapsed] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(false);
     const [selectedLayout, setSelectedLayout] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(1);
-    const [selectedModels, setSelectedModels] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])([
-        "ernie-4.0",
-        "tongyi-qianwen-2.5"
-    ]);
+    const [selectedModels, setSelectedModels] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])([]);
     const [showWelcome, setShowWelcome] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(false);
     const [messages, setMessages] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])({});
+    const [allModels, setAllModels] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])([]);
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
+        "Home.useEffect": ()=>{
+            const cached = localStorage.getItem("groupedModels");
+            if (cached) {
+                try {
+                    const grouped = JSON.parse(cached);
+                    const allModels = grouped.flatMap({
+                        "Home.useEffect.allModels": (group)=>Object.values(group)[0]
+                    }["Home.useEffect.allModels"]);
+                    setAllModels(allModels);
+                    // Set default selected models if none selected
+                    if (selectedModels.length === 0 && allModels.length > 0) {
+                        setSelectedModels([
+                            allModels[0].id
+                        ]); // Select first model as default
+                    }
+                } catch (error) {
+                    console.error("Failed to parse cached data:", error);
+                }
+            }
+        }
+    }["Home.useEffect"], []);
     const handleModelToggle = (modelId)=>{
         setSelectedModels((prev)=>{
             if (prev.includes(modelId)) {
@@ -2338,7 +2329,8 @@ function Home() {
                     ...prev
                 };
                 for (const model of selectedModels){
-                    const modelName = defaultModels.find((m)=>m.id === model)?.name || model;
+                    const modelData = allModels.find((m)=>m.id === model);
+                    const modelName = modelData?.name || model;
                     updated[model] = [
                         ...updated[model] || [],
                         {
@@ -2352,38 +2344,6 @@ function Home() {
         }, 1000);
     };
     const getActiveModels = ()=>{
-        const allModels = [
-            {
-                id: "ernie-4.0",
-                name: "文心一言 4.0",
-                icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-            },
-            {
-                id: "tongyi-qianwen-2.5",
-                name: "通义千问 2.5",
-                icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-            },
-            {
-                id: "spark-4.0",
-                name: "讯飞星火 4.0",
-                icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-            },
-            {
-                id: "glm-4",
-                name: "智谱清言 GLM-4",
-                icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-            },
-            {
-                id: "doubao-3.0",
-                name: "豆包 3.0",
-                icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-            },
-            {
-                id: "hunyuan-2.0",
-                name: "混元大模型 2.0",
-                icon: "https://ext.same-assets.com/2425995810/1402690310.png"
-            }
-        ];
         return selectedModels.map((id)=>allModels.find((m)=>m.id === id)).filter(Boolean).slice(0, selectedLayout);
     };
     const activeModels = getActiveModels();
@@ -2407,7 +2367,7 @@ function Home() {
                 onToggleCollapse: ()=>setSidebarCollapsed(!sidebarCollapsed)
             }, void 0, false, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 98,
+                lineNumber: 109,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
@@ -2422,7 +2382,7 @@ function Home() {
                                 messages: messages[model.id] || []
                             }, model.id, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 113,
+                                lineNumber: 124,
                                 columnNumber: 15
                             }, this)) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
                             className: "col-span-full flex items-center justify-center",
@@ -2434,7 +2394,7 @@ function Home() {
                                         children: "No models selected"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/page.tsx",
-                                        lineNumber: 124,
+                                        lineNumber: 135,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("p", {
@@ -2442,23 +2402,23 @@ function Home() {
                                         children: "Select models from the sidebar to start chatting"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/page.tsx",
-                                        lineNumber: 125,
+                                        lineNumber: 136,
                                         columnNumber: 17
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 123,
+                                lineNumber: 134,
                                 columnNumber: 15
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/app/page.tsx",
-                            lineNumber: 122,
+                            lineNumber: 133,
                             columnNumber: 13
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 110,
+                        lineNumber: 121,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])("div", {
@@ -2468,18 +2428,18 @@ function Home() {
                             modelIds: selectedModels
                         }, void 0, false, {
                             fileName: "[project]/src/app/page.tsx",
-                            lineNumber: 133,
+                            lineNumber: 146,
                             columnNumber: 11
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 132,
+                        lineNumber: 145,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 108,
+                lineNumber: 119,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$same$2d$runtime$2f$dist$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$WelcomeDialog$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["WelcomeDialog"], {
@@ -2487,17 +2447,17 @@ function Home() {
                 onOpenChange: setShowWelcome
             }, void 0, false, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 138,
+                lineNumber: 154,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/page.tsx",
-        lineNumber: 96,
+        lineNumber: 107,
         columnNumber: 5
     }, this);
 }
-_s(Home, "1vbJi3ew96ArcrKdFzsHHjh0nXw=");
+_s(Home, "O0b0wDgoiUBLgm87dpqfswMs9DI=");
 _c = Home;
 var _c;
 __turbopack_context__.k.register(_c, "Home");

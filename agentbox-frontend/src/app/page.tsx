@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ChatInput } from "@/components/ChatInput";
 import { WelcomeDialog } from "@/components/WelcomeDialog";
 import { Sidebar } from "@/components/SideBar";
 
-const defaultModels = [
-  { id: "ernie-4.0", name: "文心一言 4.0", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-  { id: "tongyi-qianwen-2.5", name: "通义千问 2.5", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-];
+interface ModelInfo {
+  id: string;
+  name: string;
+  icon: string;
+}
 
 interface Message {
   role: "user" | "assistant";
@@ -19,9 +20,27 @@ interface Message {
 export default function Home() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedLayout, setSelectedLayout] = useState(1);
-  const [selectedModels, setSelectedModels] = useState<string[]>(["ernie-4.0", "tongyi-qianwen-2.5"]);
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [showWelcome, setShowWelcome] = useState(false);
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
+  const [allModels, setAllModels] = useState<ModelInfo[]>([]);
+
+  useEffect(() => {
+    const cached = localStorage.getItem("groupedModels");
+    if (cached) {
+      try {
+        const grouped: Record<string, ModelInfo[]>[] = JSON.parse(cached);
+        const allModels = grouped.flatMap((group) => Object.values(group)[0]);
+        setAllModels(allModels);
+        // Set default selected models if none selected
+        if (selectedModels.length === 0 && allModels.length > 0) {
+          setSelectedModels([allModels[0].id]); // Select first model as default
+        }
+      } catch (error) {
+        console.error("Failed to parse cached data:", error);
+      }
+    }
+  }, []);
 
   const handleModelToggle = (modelId: string) => {
     setSelectedModels((prev) => {
@@ -51,7 +70,8 @@ export default function Home() {
       setMessages((prev) => {
         const updated = { ...prev };
         for (const model of selectedModels) {
-          const modelName = defaultModels.find((m) => m.id === model)?.name || model;
+          const modelData = allModels.find((m) => m.id === model);
+          const modelName = modelData?.name || model;
           updated[model] = [
             ...(updated[model] || []),
             {
@@ -66,19 +86,10 @@ export default function Home() {
   };
 
   const getActiveModels = () => {
-    const allModels = [
-      { id: "ernie-4.0", name: "文心一言 4.0", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-      { id: "tongyi-qianwen-2.5", name: "通义千问 2.5", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-      { id: "spark-4.0", name: "讯飞星火 4.0", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-      { id: "glm-4", name: "智谱清言 GLM-4", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-      { id: "doubao-3.0", name: "豆包 3.0", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-      { id: "hunyuan-2.0", name: "混元大模型 2.0", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-    ];
-
     return selectedModels
       .map((id) => allModels.find((m) => m.id === id))
       .filter(Boolean)
-      .slice(0, selectedLayout) as typeof allModels;
+      .slice(0, selectedLayout) as ModelInfo[];
   };
 
   const activeModels = getActiveModels();
@@ -122,7 +133,9 @@ export default function Home() {
             <div className="col-span-full flex items-center justify-center">
               <div className="text-center text-neutral-500">
                 <p className="text-lg font-medium mb-2">No models selected</p>
-                <p className="text-sm">Select models from the sidebar to start chatting</p>
+                <p className="text-sm">
+                  Select models from the sidebar to start chatting
+                </p>
               </div>
             </div>
           )}
@@ -130,7 +143,10 @@ export default function Home() {
 
         {/* Input Area */}
         <div className="p-4 pt-0">
-          <ChatInput onSendMessage={handleSendMessage} modelIds={selectedModels} />
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            modelIds={selectedModels}
+          />
         </div>
       </div>
 

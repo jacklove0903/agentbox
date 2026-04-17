@@ -1,27 +1,23 @@
 package com.agentbox.platform.models;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import java.time.LocalDateTime;
 
-@Entity
 @Data
-@Table(name = "messages")
+@TableName("messages")
 public class Message {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
-    @Column(nullable = false)
     private String userId;
 
-    @Column(nullable = false)
     private String modelId;
 
-    @Enumerated(EnumType.STRING)
     private Role role;
 
-    @Column(columnDefinition = "TEXT")
     private String content;
 
     private LocalDateTime timestamp = LocalDateTime.now();

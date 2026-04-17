@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,6 +15,13 @@ import {
   Settings,
 } from "lucide-react";
 
+// Define the ModelInfo interface to match the backend DTO
+interface ModelInfo {
+  id: string;
+  name: string;
+  icon: string;
+}
+
 // Layout icons for All-In-One section
 const layoutOptions = [
   { id: 1, cols: 1, icon: "single" },
@@ -28,19 +35,6 @@ const tools = [
   { id: "image-gen", name: "Image Generator", icon: Image },
   { id: "translator", name: "AI Translator", icon: Languages },
   { id: "summarizer", name: "Web Summarizer", icon: Globe },
-];
-
-const models = [
-  { id: "ernie-4.0", name: "文心一言 4.0", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-  { id: "tongyi-qianwen-2.5", name: "通义千问 2.5", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-  { id: "spark-4.0", name: "讯飞星火 4.0", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-  { id: "glm-4", name: "智谱清言 GLM-4", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-  { id: "doubao-3.0", name: "豆包 3.0", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-  { id: "hunyuan-2.0", name: "混元大模型 2.0", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-  { id: "internlm-2.5", name: "书生浦语 2.5", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-  { id: "tiangong-3.0", name: "天工 3.0", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-  { id: "qwen-3.5", name: "通义千问 Qwen 3.5", icon: "https://ext.same-assets.com/2425995810/1402690310.png" },
-  { id: "kimi-2.0", name: "Kimi 2.0", icon: "https://ext.same-assets.com/2425995810/2836578580.png" },
 ];
 
 interface SidebarProps {
@@ -61,6 +55,23 @@ export function Sidebar({
   onToggleCollapse,
 }: SidebarProps) {
   const [showAllModels, setShowAllModels] = useState(false);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+
+  // Fetch models from the backend API
+  useEffect(() => {
+    async function fetchModels() {
+      try {
+        const response = await fetch("http://localhost:8080/api/models/getmodels");
+        const data = await response.json();
+        setModels(data);
+      } catch (error) {
+        console.error("Error fetching models:", error);
+      }
+    }
+
+    fetchModels();
+  }, []);
+
   const displayedModels = showAllModels ? models : models.slice(0, 6);
 
   return (

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { ChevronDown, Share2, Copy } from "lucide-react";
 import {
   DropdownMenu,
@@ -13,6 +14,12 @@ interface Message {
   content: string;
 }
 
+interface ModelInfo {
+  id: string;
+  name: string;
+  icon: string;
+}
+
 interface ChatPanelProps {
   modelId: string;
   modelName: string;
@@ -20,20 +27,34 @@ interface ChatPanelProps {
   messages?: Message[];
 }
 
-const availableModels = [
-  { id: "gpt-5.4", name: "GPT-5.4", icon: "https://ext.same-assets.com/2425995810/1034974614.png" },
-  { id: "gpt-5.4-thinking", name: "GPT-5.4 Thinking", icon: "https://ext.same-assets.com/2425995810/1034974614.png" },
-  { id: "claude-sonnet-4.6", name: "Claude Sonnet 4.6", icon: "https://ext.same-assets.com/2425995810/232058226.png" },
-  { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro", icon: "https://ext.same-assets.com/2425995810/2254660124.png" },
-  { id: "gemini-3-flash", name: "Gemini 3 Flash", icon: "https://ext.same-assets.com/2425995810/2254660124.png" },
-  { id: "grok-4.1-fast", name: "Grok 4.1 Fast", icon: "https://ext.same-assets.com/2425995810/497172073.png" },
-];
-
 export function ChatPanel({
   modelName,
   modelIcon,
   messages = [],
 }: ChatPanelProps) {
+  const [grouped, setGrouped] = useState<Record<string, ModelInfo[]>[]>([]);
+
+  useEffect(() => {
+    const cached = localStorage.getItem("groupedModels");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setGrouped(parsed);
+      } catch (error) {
+        console.error("Failed to parse cached data:", error);
+        localStorage.removeItem("groupedModels");
+      }
+    } else {
+      fetch("http://localhost:8080/api/models/getmodelmap")
+        .then((response) => response.json())
+        .then((data: Record<string, ModelInfo[]>[]) => {
+          setGrouped(data);
+          localStorage.setItem("groupedModels", JSON.stringify(data));
+        })
+        .catch((error) => console.error("Failed to fetch models:", error));
+    }
+  }, []);
+
   return (
     <div className="h-full flex flex-col bg-white/70 backdrop-blur-sm rounded-xl border border-white/60 shadow-sm overflow-hidden">
       {/* Header */}
@@ -41,16 +62,36 @@ export function ChatPanel({
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 hover:bg-gray-100/50 rounded-lg px-2 py-1.5 transition-colors">
             <img src={modelIcon} alt={modelName} className="w-5 h-5 rounded" />
-            <span className="font-medium text-gray-800 text-sm">{modelName}</span>
+            <span className="font-medium text-gray-800 text-sm">
+              {modelName}
+            </span>
             <ChevronDown className="w-4 h-4 text-gray-400" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
-            {availableModels.map((model) => (
-              <DropdownMenuItem key={model.id} className="flex items-center gap-2">
-                <img src={model.icon} alt={model.name} className="w-4 h-4 rounded" />
-                <span>{model.name}</span>
-              </DropdownMenuItem>
-            ))}
+          <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
+            {grouped.map((group, index) => {
+              const provider = Object.keys(group)[0];
+              const models = Object.values(group)[0];
+              return (
+                <div key={index}>
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase border-b border-gray-100">
+                    {provider}
+                  </div>
+                  {models.map((model) => (
+                    <DropdownMenuItem
+                      key={`${provider}-${model.id}`}
+                      className="flex items-center gap-2 pl-4"
+                    >
+                      <img
+                        src={model.icon}
+                        alt={model.name}
+                        className="w-4 h-4 rounded"
+                      />
+                      <span>{model.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              );
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -80,7 +121,9 @@ export function ChatPanel({
                 alt={modelName}
                 className="w-12 h-12 rounded-xl mx-auto mb-3 opacity-50"
               />
-              <p className="text-sm">Start a conversation with {modelName}</p>
+              <p className="text-sm">
+                Start a conversation with {modelName}
+              </p>
             </div>
           </div>
         ) : (
@@ -88,7 +131,9 @@ export function ChatPanel({
             {messages.map((message, index) => (
               <div
                 key={`message-${message.role}-${index}`}
-                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex ${
+                  message.role === "user" ? "justify-end" : "justify-start"
+                }`}
               >
                 <div
                   className={`max-w-[85%] rounded-2xl px-4 py-3 ${

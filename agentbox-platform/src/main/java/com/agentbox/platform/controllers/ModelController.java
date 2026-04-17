@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/models")
@@ -25,5 +26,12 @@ public class ModelController {
     public ResponseEntity<List<ModelInfo>> getModels() {
         List<ModelInfo> models = modelService.getAvailableModels();
         return ResponseEntity.ok(models);
+    }
+
+
+    @GetMapping("/getmodelmap")
+    public ResponseEntity<List<Map<String, List<ModelInfo>>>> getModelMap() {
+        List<Map<String, List<ModelInfo>>> modelMap = modelService.getModelOfMap();
+        return ResponseEntity.ok(modelMap);
     }
 }
