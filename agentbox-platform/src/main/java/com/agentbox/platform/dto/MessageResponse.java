@@ -11,6 +11,7 @@ public class MessageResponse {
     @Data
     public static class ModelResponse {
         private String content;
+        private String error;
         private LocalDateTime timestamp;
     }
 }

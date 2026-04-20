@@ -12,6 +12,7 @@ import {
 interface Message {
   role: "user" | "assistant";
   content: string;
+  isError?: boolean;
 }
 
 interface ModelInfo {
@@ -159,7 +160,9 @@ export function ChatPanel({
                   className={`max-w-[85%] rounded-2xl px-4 py-3 ${
                     message.role === "user"
                       ? "bg-neutral-800 text-white"
-                      : "bg-gray-100 text-gray-800"
+                      : message.isError
+                        ? "bg-red-50 text-red-600 border border-red-200"
+                        : "bg-gray-100 text-gray-800"
                   }`}
                 >
                   <p className="text-sm leading-relaxed">{message.content}</p>

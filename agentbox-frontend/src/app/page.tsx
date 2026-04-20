@@ -15,6 +15,7 @@ interface ModelInfo {
 interface Message {
   role: "user" | "assistant";
   content: string;
+  isError?: boolean;
 }
 
 interface MessageResponse {
@@ -22,6 +23,7 @@ interface MessageResponse {
     string,
     {
       content: string;
+      error?: string;
       timestamp: string;
     }
   >;
@@ -118,7 +120,7 @@ export default function Home() {
 
     if (effectiveModelIds.length === 0) return;
 
-    const res = await fetch("http://localhost:8080/api/chat/message", {
+    const res = await fetch("http://localhost:8080/api/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -133,18 +135,82 @@ export default function Home() {
       throw new Error(`chat request failed: ${res.status}`);
     }
 
-    const data = (await res.json()) as MessageResponse;
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("No response body");
 
-    setMessages((prev) => {
-      const next = { ...prev };
-      for (const [mid, mr] of Object.entries(data.responses || {})) {
-        next[mid] = [
-          ...(next[mid] || []),
-          { role: "assistant" as const, content: mr.content },
-        ];
+    const decoder = new TextDecoder();
+    let sseBuffer = "";
+    // Track accumulated content per model for progressive rendering
+    const accumulated: Record<string, string> = {};
+    // Track which models already have a streaming assistant message appended
+    const streamStarted = new Set<string>();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      sseBuffer += decoder.decode(value, { stream: true });
+      const parts = sseBuffer.split("\n\n");
+      sseBuffer = parts.pop() || "";
+
+      for (const part of parts) {
+        const dataLine = part
+          .split("\n")
+          .find((l) => l.startsWith("data:"));
+        if (!dataLine) continue;
+
+        let chunk: { modelId: string; content: string; done: boolean; error?: string };
+        try {
+          chunk = JSON.parse(dataLine.slice(5));
+        } catch {
+          continue;
+        }
+
+        const mid = chunk.modelId;
+
+        if (chunk.error) {
+          setMessages((prev) => {
+            const next = { ...prev };
+            next[mid] = [
+              ...(next[mid] || []),
+              { role: "assistant" as const, content: chunk.error!, isError: true },
+            ];
+            return next;
+          });
+          continue;
+        }
+
+        if (chunk.done) continue;
+
+        // Accumulate delta content
+        accumulated[mid] = (accumulated[mid] || "") + chunk.content;
+
+        if (!streamStarted.has(mid)) {
+          // First chunk: append a new assistant message
+          streamStarted.add(mid);
+          setMessages((prev) => {
+            const next = { ...prev };
+            next[mid] = [
+              ...(next[mid] || []),
+              { role: "assistant" as const, content: accumulated[mid] },
+            ];
+            return next;
+          });
+        } else {
+          // Subsequent chunks: update the last assistant message in-place
+          setMessages((prev) => {
+            const next = { ...prev };
+            const msgs = [...(next[mid] || [])];
+            const lastIdx = msgs.length - 1;
+            if (lastIdx >= 0 && msgs[lastIdx].role === "assistant" && !msgs[lastIdx].isError) {
+              msgs[lastIdx] = { ...msgs[lastIdx], content: accumulated[mid] };
+            }
+            next[mid] = msgs;
+            return next;
+          });
+        }
       }
-      return next;
-    });
+    }
   };
 
   const getActiveModels = () => {
