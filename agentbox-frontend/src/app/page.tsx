@@ -48,8 +48,8 @@ export default function Home() {
         // 1) Prefer cached grouped models (if ChatPanel already fetched them)
         const cached = localStorage.getItem("groupedModels");
         if (cached) {
-          const grouped: Record<string, ModelInfo[]>[] = JSON.parse(cached);
-          const flattened = grouped.flatMap((group) => Object.values(group)[0]);
+          const grouped: Record<string, ModelInfo[]> = JSON.parse(cached);
+          const flattened = Object.values(grouped).flat();
           if (!cancelled) {
             setAllModels(flattened);
             setSelectedModels((prev) =>
@@ -97,26 +97,23 @@ export default function Home() {
     options: { webSearch: boolean; imageGen: boolean };
   }) => {
     const { message, modelIds, options } = params;
-    const activeModels = getActiveModels();
-    const targetModelId =
-      activeModelId && activeModels.some((m) => m.id === activeModelId)
-        ? activeModelId
-        : activeModels[0]?.id;
 
-    // Add user message to the active panel (fallback: first visible panel)
-    if (targetModelId) {
+    const effectiveModelIds =
+      modelIds && modelIds.length > 0 ? modelIds : activeModels.map((m) => m.id);
+
+    // Add user message to ALL target panels
+    if (effectiveModelIds.length > 0) {
       setMessages((prev) => {
         const next = { ...prev };
-        next[targetModelId] = [
-          ...(next[targetModelId] || []),
-          { role: "user" as const, content: message },
-        ];
+        for (const mid of effectiveModelIds) {
+          next[mid] = [
+            ...(next[mid] || []),
+            { role: "user" as const, content: message },
+          ];
+        }
         return next;
       });
     }
-
-    const effectiveModelIds =
-      modelIds && modelIds.length > 0 ? modelIds : targetModelId ? [targetModelId] : [];
 
     if (effectiveModelIds.length === 0) return;
 
@@ -211,13 +208,6 @@ export default function Home() {
         }
       }
     }
-  };
-
-  const getActiveModels = () => {
-    return selectedModels
-      .map((id) => allModels.find((m) => m.id === id))
-      .filter(Boolean)
-      .slice(0, selectedLayout) as ModelInfo[];
   };
 
   // Panel model ids drive what each visible panel shows.
@@ -333,15 +323,15 @@ export default function Home() {
           {loading ? (
             <div className="col-span-full flex items-center justify-center">
               <div className="text-center text-neutral-500">
-                <p className="text-lg font-medium mb-2">Loading models...</p>
+                <p className="text-lg font-medium mb-2">加载中...</p>
                 <p className="text-sm">
-                  Please wait while we fetch the available models
+                  正在获取可用模型
                 </p>
               </div>
             </div>
           ) : activeModels.length > 0 ? (
             activeModels.map((model, idx) => (
-              <div key={model.id} className="min-h-0 min-w-0">
+              <div key={`panel-${idx}`} className="min-h-0 min-w-0">
                 <ChatPanel
                   modelId={model.id}
                   modelName={model.name}
@@ -358,9 +348,9 @@ export default function Home() {
           ) : (
             <div className="col-span-full flex items-center justify-center">
               <div className="text-center text-neutral-500">
-                <p className="text-lg font-medium mb-2">No models selected</p>
+                <p className="text-lg font-medium mb-2">未选择模型</p>
                 <p className="text-sm">
-                  Select models from the sidebar to start chatting
+                  从侧边栏选择模型开始对话
                 </p>
               </div>
             </div>
@@ -371,7 +361,7 @@ export default function Home() {
         <div className="p-4 pt-0">
           <ChatInput
             onSendMessage={handleSendMessage}
-            modelIds={activeVisibleModelId ? [activeVisibleModelId] : []}
+            modelIds={activeModels.map((m) => m.id)}
           />
         </div>
       </div>

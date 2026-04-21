@@ -5,7 +5,9 @@ import com.agentbox.platform.dto.ChatHistoryResponse;
 import com.agentbox.platform.dto.MessageRequest;
 import com.agentbox.platform.dto.MessageResponse;
 import com.agentbox.platform.models.Message;
+import com.agentbox.platform.models.Model;
 import com.agentbox.platform.repositories.MessageRepository;
+import com.agentbox.platform.repositories.ModelRepository;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,8 +21,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -38,10 +38,13 @@ public class ChatService {
     private MessageRepository messageRepository;
 
     @Autowired
+    private ModelRepository modelRepository;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     private final ExecutorService modelExecutor = Executors.newFixedThreadPool(
-            Runtime.getRuntime().availableProcessors());
+            Math.max(8, Runtime.getRuntime().availableProcessors()));
 
     @PreDestroy
     public void shutdown() {
@@ -138,8 +141,9 @@ public class ChatService {
             userMsg.setTimestamp(LocalDateTime.now());
             messageRepository.insert(userMsg);
 
-            // 4. Call model with full conversation context (use modelId as DashScope model name)
-            DashScopeChatOptions options = DashScopeChatOptions.builder().model(modelId).build();
+            // 4. Call model with full conversation context
+            String apiModelName = resolveModelName(modelId);
+            DashScopeChatOptions options = DashScopeChatOptions.builder().model(apiModelName).build();
             ChatResponse chatResponse = chatModel.call(new Prompt(conversationMessages, options));
             String content = chatResponse.getResult().getOutput().getText();
 
@@ -199,70 +203,80 @@ public class ChatService {
     }
 
     private Flux<ServerSentEvent<String>> streamSingleModel(String userId, String modelId, String userMessage) {
-        return Flux.<ServerSentEvent<String>>defer(() -> {
-            try {
-                // 1. Fetch history (synchronous)
-                List<Message> history = messageRepository.selectList(
-                        new LambdaQueryWrapper<Message>()
-                                .eq(Message::getUserId, userId)
-                                .eq(Message::getModelId, modelId)
-                                .orderByDesc(Message::getTimestamp)
-                                .last("limit " + MAX_HISTORY_MESSAGES)
-                );
-                Collections.reverse(history);
+        return Flux.<ServerSentEvent<String>>create(sink -> {
+            modelExecutor.submit(() -> {
+                try {
+                    // 1. Fetch history
+                    List<Message> history = messageRepository.selectList(
+                            new LambdaQueryWrapper<Message>()
+                                    .eq(Message::getUserId, userId)
+                                    .eq(Message::getModelId, modelId)
+                                    .orderByDesc(Message::getTimestamp)
+                                    .last("limit " + MAX_HISTORY_MESSAGES)
+                    );
+                    Collections.reverse(history);
 
-                // 2. Build conversation
-                List<org.springframework.ai.chat.messages.Message> conversationMessages = new ArrayList<>();
-                for (Message msg : history) {
-                    if (msg.getRole() == Message.Role.USER) {
-                        conversationMessages.add(new UserMessage(msg.getContent()));
-                    } else {
-                        conversationMessages.add(new AssistantMessage(msg.getContent()));
+                    // 2. Build conversation
+                    List<org.springframework.ai.chat.messages.Message> conversationMessages = new ArrayList<>();
+                    for (Message msg : history) {
+                        if (msg.getRole() == Message.Role.USER) {
+                            conversationMessages.add(new UserMessage(msg.getContent()));
+                        } else {
+                            conversationMessages.add(new AssistantMessage(msg.getContent()));
+                        }
                     }
+                    conversationMessages.add(new UserMessage(userMessage));
+
+                    // 3. Save user message
+                    Message userMsg = new Message();
+                    userMsg.setUserId(userId);
+                    userMsg.setModelId(modelId);
+                    userMsg.setRole(Message.Role.USER);
+                    userMsg.setContent(userMessage);
+                    userMsg.setTimestamp(LocalDateTime.now());
+                    messageRepository.insert(userMsg);
+
+                    // 4. Stream from model — each model runs on its own thread for true parallelism
+                    StringBuilder fullContent = new StringBuilder();
+                    String apiModelName = resolveModelName(modelId);
+                    DashScopeChatOptions streamOptions = DashScopeChatOptions.builder()
+                            .model(apiModelName).build();
+
+                    chatModel.stream(new Prompt(conversationMessages, streamOptions))
+                            .doOnNext(chatResp -> {
+                                String delta = (chatResp.getResult() != null
+                                        && chatResp.getResult().getOutput() != null)
+                                        ? chatResp.getResult().getOutput().getText()
+                                        : "";
+                                if (delta != null) {
+                                    fullContent.append(delta);
+                                    sink.next(buildSseEvent(modelId, delta, false, null));
+                                }
+                            })
+                            .doOnError(e -> {
+                                sink.next(buildSseEvent(modelId, "", true,
+                                        "Model call failed: " + e.getMessage()));
+                                sink.complete();
+                            })
+                            .blockLast(); // Block THIS thread (not main) until stream completes
+
+                    // 5. Persist AI response
+                    Message aiMsg = new Message();
+                    aiMsg.setUserId(userId);
+                    aiMsg.setModelId(modelId);
+                    aiMsg.setRole(Message.Role.AI);
+                    aiMsg.setContent(fullContent.toString());
+                    aiMsg.setTimestamp(LocalDateTime.now());
+                    messageRepository.insert(aiMsg);
+
+                    sink.next(buildSseEvent(modelId, "", true, null));
+                    sink.complete();
+                } catch (Exception e) {
+                    sink.next(buildSseEvent(modelId, "", true, "Failed: " + e.getMessage()));
+                    sink.complete();
                 }
-                conversationMessages.add(new UserMessage(userMessage));
-
-                // 3. Save user message
-                Message userMsg = new Message();
-                userMsg.setUserId(userId);
-                userMsg.setModelId(modelId);
-                userMsg.setRole(Message.Role.USER);
-                userMsg.setContent(userMessage);
-                userMsg.setTimestamp(LocalDateTime.now());
-                messageRepository.insert(userMsg);
-
-                // 4. Stream from model
-                StringBuilder fullContent = new StringBuilder();
-
-                DashScopeChatOptions streamOptions = DashScopeChatOptions.builder().model(modelId).build();
-
-                return chatModel.stream(new Prompt(conversationMessages, streamOptions))
-                        .map(chatResp -> {
-                            String delta = (chatResp.getResult() != null
-                                    && chatResp.getResult().getOutput() != null)
-                                    ? chatResp.getResult().getOutput().getText()
-                                    : "";
-                            if (delta != null) fullContent.append(delta);
-                            return buildSseEvent(modelId, delta != null ? delta : "", false, null);
-                        })
-                        .concatWith(Mono.fromCallable(() -> {
-                            // Persist complete AI response
-                            Message aiMsg = new Message();
-                            aiMsg.setUserId(userId);
-                            aiMsg.setModelId(modelId);
-                            aiMsg.setRole(Message.Role.AI);
-                            aiMsg.setContent(fullContent.toString());
-                            aiMsg.setTimestamp(LocalDateTime.now());
-                            messageRepository.insert(aiMsg);
-                            return buildSseEvent(modelId, "", true, null);
-                        }))
-                        .onErrorResume(e -> Flux.just(
-                                buildSseEvent(modelId, "", true, "Model call failed: " + e.getMessage())
-                        ));
-            } catch (Exception e) {
-                return Flux.just(buildSseEvent(modelId, "", true, "Failed: " + e.getMessage()));
-            }
-        }).subscribeOn(Schedulers.boundedElastic());
+            });
+        });
     }
 
     private ServerSentEvent<String> buildSseEvent(String modelId, String content, boolean done, String error) {
@@ -280,6 +294,17 @@ public class ChatService {
                     .data("{\"modelId\":\"" + modelId + "\",\"error\":\"serialization error\",\"done\":true}")
                     .build();
         }
+    }
+
+    private String resolveModelName(String modelId) {
+        Model model = modelRepository.selectById(modelId);
+        if (model == null) {
+            throw new IllegalArgumentException("Unknown model: " + modelId);
+        }
+        if (!Boolean.TRUE.equals(model.getEnabled())) {
+            throw new IllegalArgumentException("Model is disabled: " + modelId);
+        }
+        return model.getModelName() != null ? model.getModelName() : modelId;
     }
 
     public ChatHistoryResponse history(ChatHistoryRequest request) {

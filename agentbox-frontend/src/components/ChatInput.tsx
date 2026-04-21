@@ -60,7 +60,7 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Use / to select prompts, Shift+Enter to add new line"
+            placeholder="输入消息，Shift+Enter 换行"
             className="w-full resize-none bg-transparent border-0 outline-none text-gray-800 placeholder-gray-400 text-sm leading-relaxed min-h-[24px] max-h-[150px]"
             rows={1}
             disabled={isLoading}

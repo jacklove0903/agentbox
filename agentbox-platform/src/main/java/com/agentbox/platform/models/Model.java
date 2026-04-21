@@ -12,4 +12,7 @@ public class Model {
     private String name;
     private String icon;
     private String provider;
+    private String modelName;
+    private Boolean enabled;
+    private Integer sortOrder;
 }

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ChevronDown, Share2, Copy } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { ChevronDown, RotateCcw, Trash2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,35 +42,47 @@ export function ChatPanel({
   onActivate,
   onModelChange,
 }: ChatPanelProps) {
-  const [grouped, setGrouped] = useState<Record<string, ModelInfo[]>[]>([]);
+  const [grouped, setGrouped] = useState<Record<string, ModelInfo[]>>({});
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const cached = localStorage.getItem("groupedModels");
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        setGrouped(parsed);
-      } catch (error) {
-        console.error("Failed to parse cached data:", error);
-        localStorage.removeItem("groupedModels");
+        if (!Array.isArray(parsed) && typeof parsed === "object") {
+          setGrouped(parsed);
+          return;
+        }
+      } catch {
+        // ignore
       }
-    } else {
-      fetch("http://localhost:8080/api/models/getmodelmap")
-        .then((response) => response.json())
-        .then((data: Record<string, ModelInfo[]>[]) => {
-          setGrouped(data);
-          localStorage.setItem("groupedModels", JSON.stringify(data));
-        })
-        .catch((error) => console.error("Failed to fetch models:", error));
+      localStorage.removeItem("groupedModels");
     }
+    fetch("http://localhost:8080/api/models/getmodelmap")
+      .then((response) => response.json())
+      .then((data: Record<string, ModelInfo[]>) => {
+        setGrouped(data);
+        localStorage.setItem("groupedModels", JSON.stringify(data));
+      })
+      .catch((error) => console.error("Failed to fetch models:", error));
   }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const isStreaming =
+    messages.length > 0 &&
+    messages[messages.length - 1].role === "assistant" &&
+    !messages[messages.length - 1].isError;
 
   return (
     <div
-      className={`relative h-full min-h-0 min-w-0 flex flex-col bg-white/70 backdrop-blur-sm rounded-xl border shadow-sm overflow-hidden transition-colors focus-visible:outline-none ${
+      className={`relative h-full min-h-0 min-w-0 flex flex-col bg-white/80 backdrop-blur-sm rounded-2xl border shadow-sm overflow-hidden transition-all duration-200 focus-visible:outline-none ${
         active
-          ? "border-sky-400/70 ring-2 ring-sky-300/70 z-10"
-          : "border-white/60 hover:border-gray-200 z-0"
+          ? "border-blue-400/60 ring-2 ring-blue-200/50 shadow-blue-100/50 z-10"
+          : "border-gray-200/60 hover:border-gray-300/80 z-0"
       }`}
       role="group"
       tabIndex={0}
@@ -76,99 +90,116 @@ export function ChatPanel({
       onFocus={() => onActivate?.()}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100/50">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100/80 bg-white/60">
         <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2 hover:bg-gray-100/50 rounded-lg px-2 py-1.5 transition-colors">
-            <img src={modelIcon} alt={modelName} className="w-5 h-5 rounded" />
-            <span className="font-medium text-gray-800 text-sm">
-              {modelName}
-            </span>
-            <ChevronDown className="w-4 h-4 text-gray-400" />
+          <DropdownMenuTrigger className="flex items-center gap-2 hover:bg-gray-100/60 rounded-lg px-2 py-1.5 transition-colors">
+            <img src={modelIcon} alt={modelName} className="w-5 h-5 rounded-md" />
+            <span className="font-medium text-gray-800 text-sm">{modelName}</span>
+            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
-            {grouped.map((group, index) => {
-              const provider = Object.keys(group)[0];
-              const models = Object.values(group)[0];
-              return (
-                <div key={index}>
-                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase border-b border-gray-100">
-                    {provider}
-                  </div>
-                  {models.map((model) => (
-                    <DropdownMenuItem
-                      key={`${provider}-${model.id}`}
-                      onSelect={() => onModelChange?.(model.id)}
-                      className={`flex items-center gap-2 pl-4 ${
-                        model.id === modelId ? "bg-accent" : ""
-                      }`}
-                    >
-                      <img
-                        src={model.icon}
-                        alt={model.name}
-                        className="w-4 h-4 rounded"
-                      />
-                      <span>{model.name}</span>
-                    </DropdownMenuItem>
-                  ))}
+            {Object.entries(grouped).map(([provider, models]) => (
+              <div key={provider}>
+                <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
+                  {provider}
                 </div>
-              );
-            })}
+                {models.map((model) => (
+                  <DropdownMenuItem
+                    key={`${provider}-${model.id}`}
+                    onSelect={() => onModelChange?.(model.id)}
+                    className={`flex items-center gap-2 pl-4 ${
+                      model.id === modelId ? "bg-blue-50 text-blue-700" : ""
+                    }`}
+                  >
+                    <img src={model.icon} alt={model.name} className="w-4 h-4 rounded" />
+                    <span className="text-sm">{model.name}</span>
+                  </DropdownMenuItem>
+                ))}
+              </div>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
+          {isStreaming && (
+            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 mr-1">
+              <div className="flex gap-0.5">
+                <span className="w-1 h-1 bg-blue-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                <span className="w-1 h-1 bg-blue-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                <span className="w-1 h-1 bg-blue-400 rounded-full animate-bounce [animation-delay:300ms]" />
+              </div>
+              <span className="text-[10px] text-blue-500 font-medium">生成中</span>
+            </div>
+          )}
           <button
             type="button"
-            className="p-2 rounded-lg hover:bg-gray-100/50 text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-1.5 rounded-md hover:bg-gray-100/60 text-gray-400 hover:text-gray-600 transition-colors"
+            title="重新生成"
           >
-            <Share2 className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
-            className="p-2 rounded-lg hover:bg-gray-100/50 text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-1.5 rounded-md hover:bg-gray-100/60 text-gray-400 hover:text-gray-600 transition-colors"
+            title="清空对话"
           >
-            <Copy className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center text-gray-400">
               <img
                 src={modelIcon}
                 alt={modelName}
-                className="w-12 h-12 rounded-xl mx-auto mb-3 opacity-50"
+                className="w-14 h-14 rounded-2xl mx-auto mb-3 opacity-40"
               />
-              <p className="text-sm">
-                Start a conversation with {modelName}
-              </p>
+              <p className="text-sm font-medium text-gray-500">{modelName}</p>
+              <p className="text-xs text-gray-400 mt-1">输入消息开始对话</p>
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {messages.map((message, index) => (
               <div
-                key={`message-${message.role}-${index}`}
+                key={`msg-${message.role}-${index}`}
                 className={`flex ${
                   message.role === "user" ? "justify-end" : "justify-start"
-                }`}
+                } animate-fadeIn`}
               >
+                {message.role === "assistant" && (
+                  <img
+                    src={modelIcon}
+                    alt={modelName}
+                    className="w-6 h-6 rounded-md mt-1 mr-2 flex-shrink-0"
+                  />
+                )}
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
                     message.role === "user"
-                      ? "bg-neutral-800 text-white"
+                      ? "bg-neutral-800 text-white rounded-br-md"
                       : message.isError
-                        ? "bg-red-50 text-red-600 border border-red-200"
-                        : "bg-gray-100 text-gray-800"
+                        ? "bg-red-50 text-red-600 border border-red-200 rounded-bl-md"
+                        : "bg-gray-50 text-gray-800 border border-gray-100 rounded-bl-md"
                   }`}
                 >
-                  <p className="text-sm leading-relaxed">{message.content}</p>
+                  {message.role === "assistant" && !message.isError ? (
+                    <div className="prose prose-sm prose-gray max-w-none text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:bg-gray-800 [&_pre]:text-gray-100 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_code]:text-xs [&_code]:bg-gray-200 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="text-sm leading-relaxed">{message.content}</p>
+                  )}
                 </div>
               </div>
             ))}
+            <div ref={messagesEndRef} />
           </div>
         )}
       </div>
