@@ -31,6 +31,7 @@ interface ChatPanelProps {
   active?: boolean;
   onActivate?: () => void;
   onModelChange?: (modelId: string) => void;
+  hideModelSwitcher?: boolean;
 }
 
 export function ChatPanel({
@@ -41,29 +42,18 @@ export function ChatPanel({
   active = false,
   onActivate,
   onModelChange,
+  hideModelSwitcher = false,
 }: ChatPanelProps) {
   const [grouped, setGrouped] = useState<Record<string, ModelInfo[]>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const cached = localStorage.getItem("groupedModels");
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (!Array.isArray(parsed) && typeof parsed === "object") {
-          setGrouped(parsed);
-          return;
-        }
-      } catch {
-        // ignore
-      }
-      localStorage.removeItem("groupedModels");
-    }
+    // Clear any legacy cache to avoid showing stale icon URLs.
+    localStorage.removeItem("groupedModels");
     fetch("http://localhost:8080/api/models/getmodelmap")
       .then((response) => response.json())
       .then((data: Record<string, ModelInfo[]>) => {
         setGrouped(data);
-        localStorage.setItem("groupedModels", JSON.stringify(data));
       })
       .catch((error) => console.error("Failed to fetch models:", error));
   }, []);
@@ -91,34 +81,41 @@ export function ChatPanel({
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100/80 bg-white/60">
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2 hover:bg-gray-100/60 rounded-lg px-2 py-1.5 transition-colors">
+        {hideModelSwitcher ? (
+          <div className="flex items-center gap-2 px-2 py-1.5">
             <img src={modelIcon} alt={modelName} className="w-5 h-5 rounded-md" />
             <span className="font-medium text-gray-800 text-sm">{modelName}</span>
-            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
-            {Object.entries(grouped).map(([provider, models]) => (
-              <div key={provider}>
-                <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
-                  {provider}
+          </div>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-2 hover:bg-gray-100/60 rounded-lg px-2 py-1.5 transition-colors">
+              <img src={modelIcon} alt={modelName} className="w-5 h-5 rounded-md" />
+              <span className="font-medium text-gray-800 text-sm">{modelName}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
+              {Object.entries(grouped).map(([provider, models]) => (
+                <div key={provider}>
+                  <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
+                    {provider}
+                  </div>
+                  {models.map((model) => (
+                    <DropdownMenuItem
+                      key={`${provider}-${model.id}`}
+                      onSelect={() => onModelChange?.(model.id)}
+                      className={`flex items-center gap-2 pl-4 ${
+                        model.id === modelId ? "bg-blue-50 text-blue-700" : ""
+                      }`}
+                    >
+                      <img src={model.icon} alt={model.name} className="w-4 h-4 rounded" />
+                      <span className="text-sm">{model.name}</span>
+                    </DropdownMenuItem>
+                  ))}
                 </div>
-                {models.map((model) => (
-                  <DropdownMenuItem
-                    key={`${provider}-${model.id}`}
-                    onSelect={() => onModelChange?.(model.id)}
-                    className={`flex items-center gap-2 pl-4 ${
-                      model.id === modelId ? "bg-blue-50 text-blue-700" : ""
-                    }`}
-                  >
-                    <img src={model.icon} alt={model.name} className="w-4 h-4 rounded" />
-                    <span className="text-sm">{model.name}</span>
-                  </DropdownMenuItem>
-                ))}
-              </div>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         <div className="flex items-center gap-0.5">
           {isStreaming && (
@@ -153,11 +150,7 @@ export function ChatPanel({
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center text-gray-400">
-              <img
-                src={modelIcon}
-                alt={modelName}
-                className="w-14 h-14 rounded-2xl mx-auto mb-3 opacity-40"
-              />
+              <img src={modelIcon} alt={modelName} className="w-14 h-14 rounded-2xl mx-auto mb-3 opacity-40" />
               <p className="text-sm font-medium text-gray-500">{modelName}</p>
               <p className="text-xs text-gray-400 mt-1">输入消息开始对话</p>
             </div>

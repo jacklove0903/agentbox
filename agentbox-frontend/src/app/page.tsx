@@ -18,17 +18,6 @@ interface Message {
   isError?: boolean;
 }
 
-interface MessageResponse {
-  responses: Record<
-    string,
-    {
-      content: string;
-      error?: string;
-      timestamp: string;
-    }
-  >;
-}
-
 export default function Home() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedLayout, setSelectedLayout] = useState(1);
@@ -39,28 +28,16 @@ export default function Home() {
   const [allModels, setAllModels] = useState<ModelInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [panelModelIds, setPanelModelIds] = useState<string[]>([]);
+  // View mode: 'all-in-one' = multi-panel grid; 'single' = one standalone chat for singleModelId.
+  const [viewMode, setViewMode] = useState<"all-in-one" | "single">("all-in-one");
+  const [singleModelId, setSingleModelId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadModels() {
       try {
-        // 1) Prefer cached grouped models (if ChatPanel already fetched them)
-        const cached = localStorage.getItem("groupedModels");
-        if (cached) {
-          const grouped: Record<string, ModelInfo[]> = JSON.parse(cached);
-          const flattened = Object.values(grouped).flat();
-          if (!cancelled) {
-            setAllModels(flattened);
-            setSelectedModels((prev) =>
-              prev.length === 0 && flattened.length > 0 ? [flattened[0].id] : prev
-            );
-            setLoading(false);
-          }
-          return;
-        }
-
-        // 2) Fallback: fetch model list directly so layout switching works immediately
+        // Always fetch fresh from the same endpoint as Sidebar so icon URLs match.
         const res = await fetch("http://localhost:8080/api/models/getmodels");
         const data = (await res.json()) as ModelInfo[];
         if (!cancelled) {
@@ -82,14 +59,128 @@ export default function Home() {
     };
   }, []);
 
+  // Click a model in the sidebar → enter single-model view for that model.
+  // Messages are keyed by modelId at the top level, so chat history is shared
+  // between all-in-one and single views for the same model.
   const handleModelToggle = (modelId: string) => {
-    setSelectedModels((prev) => {
-      if (prev.includes(modelId)) {
-        return prev.filter((id) => id !== modelId);
-      }
-      return [...prev, modelId];
-    });
+    setViewMode("single");
+    setSingleModelId(modelId);
+    setActiveModelId(modelId);
   };
+
+  // Click a layout button → enter/stay in all-in-one view and update layout.
+  const handleLayoutChange = (layout: number) => {
+    setViewMode("all-in-one");
+    setSelectedLayout(layout);
+  };
+
+  // Stream from a single model via its own dedicated HTTP request.
+  const streamOneModel = async (
+    mid: string,
+    message: string,
+    options: { webSearch: boolean; imageGen: boolean },
+  ) => {
+    try {
+      const res = await fetch("http://localhost:8080/api/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: "demo",
+          message,
+          modelIds: [mid],
+          options,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`chat request failed: ${res.status}`);
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let sseBuffer = "";
+      let accumulated = "";
+      let streamStarted = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        sseBuffer += decoder.decode(value, { stream: true });
+        const parts = sseBuffer.split("\n\n");
+        sseBuffer = parts.pop() || "";
+
+        for (const part of parts) {
+          const dataLine = part.split("\n").find((l) => l.startsWith("data:"));
+          if (!dataLine) continue;
+
+          let chunk: { modelId: string; content: string; done: boolean; error?: string };
+          try {
+            chunk = JSON.parse(dataLine.slice(5));
+          } catch {
+            continue;
+          }
+
+          if (chunk.error) {
+            setMessages((prev) => ({
+              ...prev,
+              [mid]: [
+                ...(prev[mid] || []),
+                { role: "assistant" as const, content: chunk.error!, isError: true },
+              ],
+            }));
+            continue;
+          }
+
+          if (chunk.done) continue;
+
+          accumulated += chunk.content;
+
+          if (!streamStarted) {
+            streamStarted = true;
+            setMessages((prev) => ({
+              ...prev,
+              [mid]: [
+                ...(prev[mid] || []),
+                { role: "assistant" as const, content: accumulated },
+              ],
+            }));
+          } else {
+            setMessages((prev) => {
+              const msgs = [...(prev[mid] || [])];
+              const lastIdx = msgs.length - 1;
+              if (lastIdx >= 0 && msgs[lastIdx].role === "assistant" && !msgs[lastIdx].isError) {
+                msgs[lastIdx] = { ...msgs[lastIdx], content: accumulated };
+              }
+              return { ...prev, [mid]: msgs };
+            });
+          }
+        }
+      }
+    } catch (e) {
+      setMessages((prev) => ({
+        ...prev,
+        [mid]: [
+          ...(prev[mid] || []),
+          {
+            role: "assistant" as const,
+            content: `请求失败: ${e instanceof Error ? e.message : String(e)}`,
+            isError: true,
+          },
+        ],
+      }));
+    }
+  };
+
+  // Panel model ids drive what each visible panel shows in all-in-one mode.
+  const visiblePanelModelIds = panelModelIds.slice(0, selectedLayout);
+  const activeModels = visiblePanelModelIds
+    .map((id) => allModels.find((m) => m.id === id))
+    .filter(Boolean) as ModelInfo[];
+
+  const singleModelView =
+    viewMode === "single" && singleModelId
+      ? allModels.find((m) => m.id === singleModelId) ?? null
+      : null;
 
   const handleSendMessage = async (params: {
     message: string;
@@ -98,130 +189,36 @@ export default function Home() {
   }) => {
     const { message, modelIds, options } = params;
 
+    // Pick targets based on current view mode.
+    const fallbackIds =
+      viewMode === "single" && singleModelId
+        ? [singleModelId]
+        : activeModels.map((m) => m.id);
     const effectiveModelIds =
-      modelIds && modelIds.length > 0 ? modelIds : activeModels.map((m) => m.id);
-
-    // Add user message to ALL target panels
-    if (effectiveModelIds.length > 0) {
-      setMessages((prev) => {
-        const next = { ...prev };
-        for (const mid of effectiveModelIds) {
-          next[mid] = [
-            ...(next[mid] || []),
-            { role: "user" as const, content: message },
-          ];
-        }
-        return next;
-      });
-    }
+      modelIds && modelIds.length > 0 ? modelIds : fallbackIds;
 
     if (effectiveModelIds.length === 0) return;
 
-    const res = await fetch("http://localhost:8080/api/chat/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: "demo",
-        message,
-        modelIds: effectiveModelIds,
-        options,
-      }),
+    // 1. Add user message to ALL target panels immediately.
+    setMessages((prev) => {
+      const next = { ...prev };
+      for (const mid of effectiveModelIds) {
+        next[mid] = [
+          ...(next[mid] || []),
+          { role: "user" as const, content: message },
+        ];
+      }
+      return next;
     });
 
-    if (!res.ok) {
-      throw new Error(`chat request failed: ${res.status}`);
-    }
-
-    const reader = res.body?.getReader();
-    if (!reader) throw new Error("No response body");
-
-    const decoder = new TextDecoder();
-    let sseBuffer = "";
-    // Track accumulated content per model for progressive rendering
-    const accumulated: Record<string, string> = {};
-    // Track which models already have a streaming assistant message appended
-    const streamStarted = new Set<string>();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      sseBuffer += decoder.decode(value, { stream: true });
-      const parts = sseBuffer.split("\n\n");
-      sseBuffer = parts.pop() || "";
-
-      for (const part of parts) {
-        const dataLine = part
-          .split("\n")
-          .find((l) => l.startsWith("data:"));
-        if (!dataLine) continue;
-
-        let chunk: { modelId: string; content: string; done: boolean; error?: string };
-        try {
-          chunk = JSON.parse(dataLine.slice(5));
-        } catch {
-          continue;
-        }
-
-        const mid = chunk.modelId;
-
-        if (chunk.error) {
-          setMessages((prev) => {
-            const next = { ...prev };
-            next[mid] = [
-              ...(next[mid] || []),
-              { role: "assistant" as const, content: chunk.error!, isError: true },
-            ];
-            return next;
-          });
-          continue;
-        }
-
-        if (chunk.done) continue;
-
-        // Accumulate delta content
-        accumulated[mid] = (accumulated[mid] || "") + chunk.content;
-
-        if (!streamStarted.has(mid)) {
-          // First chunk: append a new assistant message
-          streamStarted.add(mid);
-          setMessages((prev) => {
-            const next = { ...prev };
-            next[mid] = [
-              ...(next[mid] || []),
-              { role: "assistant" as const, content: accumulated[mid] },
-            ];
-            return next;
-          });
-        } else {
-          // Subsequent chunks: update the last assistant message in-place
-          setMessages((prev) => {
-            const next = { ...prev };
-            const msgs = [...(next[mid] || [])];
-            const lastIdx = msgs.length - 1;
-            if (lastIdx >= 0 && msgs[lastIdx].role === "assistant" && !msgs[lastIdx].isError) {
-              msgs[lastIdx] = { ...msgs[lastIdx], content: accumulated[mid] };
-            }
-            next[mid] = msgs;
-            return next;
-          });
-        }
-      }
-    }
+    // 2. Fire N independent HTTP requests in parallel.
+    await Promise.all(
+      effectiveModelIds.map((mid) => streamOneModel(mid, message, options)),
+    );
   };
 
-  // Panel model ids drive what each visible panel shows.
-  const visiblePanelModelIds = panelModelIds.slice(0, selectedLayout);
-  const activeModels = visiblePanelModelIds
-    .map((id) => allModels.find((m) => m.id === id))
-    .filter(Boolean) as ModelInfo[];
-  const activeVisibleModelId =
-    (activeModelId && activeModels.some((m) => m.id === activeModelId)
-      ? activeModelId
-      : activeModels[0]?.id) ?? null;
-
   useEffect(() => {
-    // When layout increases, auto-fill selected models so the UI can actually show N panels.
+    // When layout increases, auto-fill selected models so UI can show N panels.
     if (loading) return;
     if (allModels.length === 0) return;
 
@@ -258,7 +255,6 @@ export default function Home() {
         used.add(id);
         next.push(id);
       }
-      // Ensure we have enough ids to cover selectedLayout.
       if (next.length < selectedLayout) {
         for (const m of allModels) {
           if (next.length >= selectedLayout) break;
@@ -272,6 +268,7 @@ export default function Home() {
   }, [selectedLayout, selectedModels, allModels, loading]);
 
   useEffect(() => {
+    if (viewMode !== "all-in-one") return;
     if (activeModels.length === 0) {
       setActiveModelId(null);
       return;
@@ -280,7 +277,7 @@ export default function Home() {
       if (prev && activeModels.some((m) => m.id === prev)) return prev;
       return activeModels[0].id;
     });
-  }, [selectedLayout, selectedModels, allModels.length]);
+  }, [viewMode, selectedLayout, selectedModels, allModels.length]);
 
   const handlePanelModelChange = (panelIndex: number, modelId: string) => {
     setPanelModelIds((prev) => {
@@ -290,12 +287,10 @@ export default function Home() {
       return next;
     });
 
-    // Keep sidebar selection consistent: if user picks a model via panel dropdown, add it.
     setSelectedModels((prev) => (prev.includes(modelId) ? prev : [...prev, modelId]));
     setActiveModelId(modelId);
   };
 
-  // Determine grid columns based on layout
   const getGridCols = () => {
     if (selectedLayout === 1) return "grid-cols-1";
     if (selectedLayout === 2) return "grid-cols-2";
@@ -308,9 +303,14 @@ export default function Home() {
     <div className="h-screen flex overflow-hidden">
       {/* Sidebar */}
       <Sidebar
-        selectedLayout={selectedLayout}
-        onLayoutChange={setSelectedLayout}
-        selectedModels={selectedModels}
+        // In single mode, no layout is highlighted (pass 0 so none match).
+        selectedLayout={viewMode === "all-in-one" ? selectedLayout : 0}
+        onLayoutChange={handleLayoutChange}
+        selectedModels={
+          viewMode === "single" && singleModelId
+            ? [singleModelId]
+            : activeModels.map((m) => m.id)
+        }
         onModelToggle={handleModelToggle}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -318,50 +318,74 @@ export default function Home() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 main-gradient">
-        {/* Chat Panels Grid */}
-        <div className={`flex-1 min-h-0 p-4 grid gap-4 ${getGridCols()}`}>
-          {loading ? (
-            <div className="col-span-full flex items-center justify-center">
-              <div className="text-center text-neutral-500">
-                <p className="text-lg font-medium mb-2">加载中...</p>
-                <p className="text-sm">
-                  正在获取可用模型
-                </p>
+        {/* Chat area — renders differently based on viewMode */}
+        {viewMode === "single" ? (
+          <div className="flex-1 min-h-0 p-4">
+            {loading ? (
+              <div className="h-full flex items-center justify-center text-neutral-500">
+                <p className="text-lg font-medium">加载中...</p>
               </div>
-            </div>
-          ) : activeModels.length > 0 ? (
-            activeModels.map((model, idx) => (
-              <div key={`panel-${idx}`} className="min-h-0 min-w-0">
-                <ChatPanel
-                  modelId={model.id}
-                  modelName={model.name}
-                  modelIcon={model.icon}
-                  messages={messages[model.id] || []}
-                  active={activeModelId === model.id}
-                  onActivate={() => setActiveModelId(model.id)}
-                  onModelChange={(newModelId) =>
-                    handlePanelModelChange(idx, newModelId)
-                  }
-                />
+            ) : singleModelView ? (
+              <ChatPanel
+                modelId={singleModelView.id}
+                modelName={singleModelView.name}
+                modelIcon={singleModelView.icon}
+                messages={messages[singleModelView.id] || []}
+                active={true}
+                hideModelSwitcher={true}
+                onActivate={() => setActiveModelId(singleModelView.id)}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center text-neutral-500">
+                <p className="text-lg font-medium">未选择模型</p>
               </div>
-            ))
-          ) : (
-            <div className="col-span-full flex items-center justify-center">
-              <div className="text-center text-neutral-500">
-                <p className="text-lg font-medium mb-2">未选择模型</p>
-                <p className="text-sm">
-                  从侧边栏选择模型开始对话
-                </p>
+            )}
+          </div>
+        ) : (
+          <div className={`flex-1 min-h-0 p-4 grid gap-4 ${getGridCols()}`}>
+            {loading ? (
+              <div className="col-span-full flex items-center justify-center">
+                <div className="text-center text-neutral-500">
+                  <p className="text-lg font-medium mb-2">加载中...</p>
+                  <p className="text-sm">正在获取可用模型</p>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            ) : activeModels.length > 0 ? (
+              activeModels.map((model, idx) => (
+                <div key={`panel-${idx}`} className="min-h-0 min-w-0">
+                  <ChatPanel
+                    modelId={model.id}
+                    modelName={model.name}
+                    modelIcon={model.icon}
+                    messages={messages[model.id] || []}
+                    active={activeModelId === model.id}
+                    onActivate={() => setActiveModelId(model.id)}
+                    onModelChange={(newModelId) =>
+                      handlePanelModelChange(idx, newModelId)
+                    }
+                  />
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full flex items-center justify-center">
+                <div className="text-center text-neutral-500">
+                  <p className="text-lg font-medium mb-2">未选择模型</p>
+                  <p className="text-sm">从侧边栏选择模型开始对话</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Input Area */}
         <div className="p-4 pt-0">
           <ChatInput
             onSendMessage={handleSendMessage}
-            modelIds={activeModels.map((m) => m.id)}
+            modelIds={
+              viewMode === "single" && singleModelId
+                ? [singleModelId]
+                : activeModels.map((m) => m.id)
+            }
           />
         </div>
       </div>

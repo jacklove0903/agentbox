@@ -8,6 +8,8 @@ import com.agentbox.platform.models.Message;
 import com.agentbox.platform.models.Model;
 import com.agentbox.platform.repositories.MessageRepository;
 import com.agentbox.platform.repositories.ModelRepository;
+import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
+import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +20,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -33,6 +36,9 @@ public class ChatService {
 
     @Autowired
     private ChatModel chatModel;
+
+    @Value("${spring.ai.dashscope.api-key}")
+    private String dashScopeApiKey;
 
     @Autowired
     private MessageRepository messageRepository;
@@ -144,7 +150,8 @@ public class ChatService {
             // 4. Call model with full conversation context
             String apiModelName = resolveModelName(modelId);
             DashScopeChatOptions options = DashScopeChatOptions.builder().model(apiModelName).build();
-            ChatResponse chatResponse = chatModel.call(new Prompt(conversationMessages, options));
+            ChatModel freshModel = createFreshChatModel();
+            ChatResponse chatResponse = freshModel.call(new Prompt(conversationMessages, options));
             String content = chatResponse.getResult().getOutput().getText();
 
             // 5. Persist AI response
@@ -242,7 +249,8 @@ public class ChatService {
                     DashScopeChatOptions streamOptions = DashScopeChatOptions.builder()
                             .model(apiModelName).build();
 
-                    chatModel.stream(new Prompt(conversationMessages, streamOptions))
+                    ChatModel freshModel = createFreshChatModel();
+                    freshModel.stream(new Prompt(conversationMessages, streamOptions))
                             .doOnNext(chatResp -> {
                                 String delta = (chatResp.getResult() != null
                                         && chatResp.getResult().getOutput() != null)
@@ -294,6 +302,11 @@ public class ChatService {
                     .data("{\"modelId\":\"" + modelId + "\",\"error\":\"serialization error\",\"done\":true}")
                     .build();
         }
+    }
+
+    private ChatModel createFreshChatModel() {
+        DashScopeApi api = DashScopeApi.builder().apiKey(dashScopeApiKey).build();
+        return new DashScopeChatModel.Builder((DashScopeChatModel) chatModel).dashScopeApi(api).build();
     }
 
     private String resolveModelName(String modelId) {
