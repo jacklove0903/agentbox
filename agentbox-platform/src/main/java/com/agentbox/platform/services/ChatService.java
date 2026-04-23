@@ -53,7 +53,10 @@ public class ChatService {
     private WebSearchService webSearchService;
 
     private final ExecutorService modelExecutor = Executors.newFixedThreadPool(
-            Math.max(8, Runtime.getRuntime().availableProcessors()));
+            Math.max(32, Runtime.getRuntime().availableProcessors() * 4));
+
+    // In-memory cache for model name resolution (modelId -> apiModelName)
+    private final ConcurrentHashMap<String, String> modelNameCache = new ConcurrentHashMap<>();
 
     @PreDestroy
     public void shutdown() {
@@ -387,6 +390,9 @@ public class ChatService {
     }
 
     private String resolveModelName(String modelId) {
+        String cached = modelNameCache.get(modelId);
+        if (cached != null) return cached;
+
         Model model = modelRepository.selectById(modelId);
         if (model == null) {
             throw new IllegalArgumentException("Unknown model: " + modelId);
@@ -394,7 +400,14 @@ public class ChatService {
         if (!Boolean.TRUE.equals(model.getEnabled())) {
             throw new IllegalArgumentException("Model is disabled: " + modelId);
         }
-        return model.getModelName() != null ? model.getModelName() : modelId;
+        String apiName = model.getModelName() != null ? model.getModelName() : modelId;
+        modelNameCache.put(modelId, apiName);
+        return apiName;
+    }
+
+    /** Clear model name cache (call after model config changes). */
+    public void clearModelNameCache() {
+        modelNameCache.clear();
     }
 
     public ChatHistoryResponse history(ChatHistoryRequest request) {

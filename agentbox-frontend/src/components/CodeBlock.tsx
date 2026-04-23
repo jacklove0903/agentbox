@@ -44,7 +44,7 @@ export function CodeBlock({
       >
         {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
       </button>
-      <code className={className} {...props}>
+      <code className={`${className || ""} ${lang ? "!pt-6 block" : ""}`} {...props}>
         {children}
       </code>
     </div>

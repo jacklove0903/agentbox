@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
-export const API_BASE = "http://localhost:8080";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
 const TOKEN_KEY = "agentbox_token";
 const USER_KEY = "agentbox_user";
 

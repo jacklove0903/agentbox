@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { API_BASE } from "@/lib/auth";
 
 interface Message {
   role: "user" | "assistant";
@@ -61,7 +62,7 @@ export function ChatPanel({
   useEffect(() => {
     // Clear any legacy cache to avoid showing stale icon URLs.
     localStorage.removeItem("groupedModels");
-    fetch("http://localhost:8080/api/models/getmodelmap")
+    fetch(`${API_BASE}/api/models/getmodelmap`)
       .then((response) => response.json())
       .then((data: Record<string, ModelInfo[]>) => {
         setGrouped(data);
@@ -212,7 +213,7 @@ export function ChatPanel({
                   }`}
                 >
                   {message.role === "assistant" && !message.isError ? (
-                    <div className="prose prose-sm prose-gray max-w-none text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:bg-gray-800 [&_pre]:text-gray-100 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_code]:text-xs [&_code]:bg-gray-200 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5">
+                    <div className="prose prose-sm prose-gray max-w-none text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:bg-gray-800 [&_pre]:text-gray-100 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_pre_code]:bg-transparent [&_pre_code]:text-gray-100 [&_pre_code]:p-0 [&_:not(pre)>code]:text-xs [&_:not(pre)>code]:bg-gray-200 [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:rounded [&_:not(pre)>code]:text-gray-800 [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
                         {message.content}
                       </ReactMarkdown>

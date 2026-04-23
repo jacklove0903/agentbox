@@ -17,6 +17,9 @@ agentbox-frontend/tsconfig.tsbuildinfo
 agentbox-frontend/.env.local
 agentbox-frontend/.env.production.local
 
+# 环境变量 (含密钥)
+.env.production
+
 # 系统文件
 .DS_Store
 *.log
