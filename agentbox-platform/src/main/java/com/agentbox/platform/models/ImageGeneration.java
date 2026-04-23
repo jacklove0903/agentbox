@@ -4,27 +4,24 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
+
 import java.time.LocalDateTime;
 
 @Data
-@TableName("messages")
-public class Message {
+@TableName("image_generations")
+public class ImageGeneration {
     @TableId(type = IdType.AUTO)
     private Long id;
 
     private String userId;
 
-    private String conversationId;
+    private String prompt;
 
-    private String modelId;
+    private String model;
 
-    private Role role;
+    private String size;
 
-    private String content;
+    private String imageUrl;
 
-    private LocalDateTime timestamp = LocalDateTime.now();
-
-    public enum Role {
-        USER, AI
-    }
+    private LocalDateTime createdAt = LocalDateTime.now();
 }

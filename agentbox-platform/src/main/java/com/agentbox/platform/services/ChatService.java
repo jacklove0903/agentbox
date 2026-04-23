@@ -4,23 +4,23 @@ import com.agentbox.platform.dto.ChatHistoryRequest;
 import com.agentbox.platform.dto.ChatHistoryResponse;
 import com.agentbox.platform.dto.MessageRequest;
 import com.agentbox.platform.dto.MessageResponse;
+import com.agentbox.platform.models.Conversation;
 import com.agentbox.platform.models.Message;
 import com.agentbox.platform.models.Model;
+import com.agentbox.platform.repositories.ConversationRepository;
 import com.agentbox.platform.repositories.MessageRepository;
 import com.agentbox.platform.repositories.ModelRepository;
-import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -37,9 +37,6 @@ public class ChatService {
     @Autowired
     private ChatModel chatModel;
 
-    @Value("${spring.ai.dashscope.api-key}")
-    private String dashScopeApiKey;
-
     @Autowired
     private MessageRepository messageRepository;
 
@@ -47,7 +44,13 @@ public class ChatService {
     private ModelRepository modelRepository;
 
     @Autowired
+    private ConversationRepository conversationRepository;
+
+    @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private WebSearchService webSearchService;
 
     private final ExecutorService modelExecutor = Executors.newFixedThreadPool(
             Math.max(8, Runtime.getRuntime().availableProcessors()));
@@ -149,9 +152,8 @@ public class ChatService {
 
             // 4. Call model with full conversation context
             String apiModelName = resolveModelName(modelId);
-            DashScopeChatOptions options = DashScopeChatOptions.builder().model(apiModelName).build();
-            ChatModel freshModel = createFreshChatModel();
-            ChatResponse chatResponse = freshModel.call(new Prompt(conversationMessages, options));
+            OpenAiChatOptions options = OpenAiChatOptions.builder().model(apiModelName).build();
+            ChatResponse chatResponse = chatModel.call(new Prompt(conversationMessages, options));
             String content = chatResponse.getResult().getOutput().getText();
 
             // 5. Persist AI response
@@ -202,25 +204,70 @@ public class ChatService {
             throw new IllegalArgumentException("no valid modelIds provided");
         }
 
-        List<Flux<ServerSentEvent<String>>> modelFluxes = validModelIds.stream()
-                .map(modelId -> streamSingleModel(userId, modelId, trimmedMessage))
-                .toList();
+        // Extract webSearch option
+        boolean webSearch = false;
+        if (request.getOptions() != null) {
+            Object ws = request.getOptions().get("webSearch");
+            webSearch = Boolean.TRUE.equals(ws) || "true".equals(String.valueOf(ws));
+        }
+        boolean finalWebSearch = webSearch;
+
+        // Resolve or auto-create conversation
+        String conversationId = request.getConversationId();
+        if (conversationId == null || conversationId.isBlank()) {
+            // Auto-create a new conversation, title = first 30 chars of message
+            Conversation conv = new Conversation();
+            conv.setId(UUID.randomUUID().toString());
+            conv.setUserId(userId);
+            String title = trimmedMessage.length() > 30
+                    ? trimmedMessage.substring(0, 30) + "..."
+                    : trimmedMessage;
+            conv.setTitle(title);
+            conv.setCreatedAt(LocalDateTime.now());
+            conv.setUpdatedAt(LocalDateTime.now());
+            conversationRepository.insert(conv);
+            conversationId = conv.getId();
+        } else {
+            // Touch updatedAt
+            Conversation conv = conversationRepository.selectById(conversationId);
+            if (conv != null) {
+                conv.setUpdatedAt(LocalDateTime.now());
+                conversationRepository.updateById(conv);
+            }
+        }
+        String finalConversationId = conversationId;
+
+        // Send the conversationId back to the client as the first SSE event
+        List<Flux<ServerSentEvent<String>>> modelFluxes = new ArrayList<>();
+        // Emit a meta event with the conversationId so the client can track it
+        Flux<ServerSentEvent<String>> metaFlux = Flux.just(
+                buildConversationIdEvent(finalConversationId));
+        modelFluxes.add(metaFlux);
+
+        validModelIds.stream()
+                .map(modelId -> streamSingleModel(userId, modelId, trimmedMessage,
+                        finalWebSearch, finalConversationId))
+                .forEach(modelFluxes::add);
 
         return Flux.merge(modelFluxes);
     }
 
-    private Flux<ServerSentEvent<String>> streamSingleModel(String userId, String modelId, String userMessage) {
+    private Flux<ServerSentEvent<String>> streamSingleModel(String userId, String modelId,
+                                                               String userMessage, boolean webSearch,
+                                                               String conversationId) {
         return Flux.<ServerSentEvent<String>>create(sink -> {
             modelExecutor.submit(() -> {
                 try {
-                    // 1. Fetch history
-                    List<Message> history = messageRepository.selectList(
-                            new LambdaQueryWrapper<Message>()
-                                    .eq(Message::getUserId, userId)
-                                    .eq(Message::getModelId, modelId)
-                                    .orderByDesc(Message::getTimestamp)
-                                    .last("limit " + MAX_HISTORY_MESSAGES)
-                    );
+                    // 1. Fetch history scoped to conversation + model
+                    LambdaQueryWrapper<Message> historyQuery = new LambdaQueryWrapper<Message>()
+                            .eq(Message::getUserId, userId)
+                            .eq(Message::getModelId, modelId);
+                    if (conversationId != null && !conversationId.isBlank()) {
+                        historyQuery.eq(Message::getConversationId, conversationId);
+                    }
+                    historyQuery.orderByDesc(Message::getTimestamp)
+                            .last("limit " + MAX_HISTORY_MESSAGES);
+                    List<Message> history = messageRepository.selectList(historyQuery);
                     Collections.reverse(history);
 
                     // 2. Build conversation
@@ -234,9 +281,23 @@ public class ChatService {
                     }
                     conversationMessages.add(new UserMessage(userMessage));
 
+                    // 2.5 Web Search: search and inject results as system context
+                    if (webSearch) {
+                        sink.next(buildSseEvent(modelId, "", false, null, true));
+                        try {
+                            var searchResults = webSearchService.search(userMessage);
+                            String searchContext = webSearchService.buildSearchContext(searchResults);
+                            conversationMessages.add(0, new SystemMessage(searchContext));
+                        } catch (Exception e) {
+                            conversationMessages.add(0, new SystemMessage(
+                                    "网络搜索失败（" + e.getMessage() + "），请基于你的知识回答用户的问题。"));
+                        }
+                    }
+
                     // 3. Save user message
                     Message userMsg = new Message();
                     userMsg.setUserId(userId);
+                    userMsg.setConversationId(conversationId);
                     userMsg.setModelId(modelId);
                     userMsg.setRole(Message.Role.USER);
                     userMsg.setContent(userMessage);
@@ -246,11 +307,10 @@ public class ChatService {
                     // 4. Stream from model — each model runs on its own thread for true parallelism
                     StringBuilder fullContent = new StringBuilder();
                     String apiModelName = resolveModelName(modelId);
-                    DashScopeChatOptions streamOptions = DashScopeChatOptions.builder()
+                    OpenAiChatOptions streamOptions = OpenAiChatOptions.builder()
                             .model(apiModelName).build();
 
-                    ChatModel freshModel = createFreshChatModel();
-                    freshModel.stream(new Prompt(conversationMessages, streamOptions))
+                    chatModel.stream(new Prompt(conversationMessages, streamOptions))
                             .doOnNext(chatResp -> {
                                 String delta = (chatResp.getResult() != null
                                         && chatResp.getResult().getOutput() != null)
@@ -271,6 +331,7 @@ public class ChatService {
                     // 5. Persist AI response
                     Message aiMsg = new Message();
                     aiMsg.setUserId(userId);
+                    aiMsg.setConversationId(conversationId);
                     aiMsg.setModelId(modelId);
                     aiMsg.setRole(Message.Role.AI);
                     aiMsg.setContent(fullContent.toString());
@@ -288,12 +349,18 @@ public class ChatService {
     }
 
     private ServerSentEvent<String> buildSseEvent(String modelId, String content, boolean done, String error) {
+        return buildSseEvent(modelId, content, done, error, false);
+    }
+
+    private ServerSentEvent<String> buildSseEvent(String modelId, String content, boolean done,
+                                                   String error, boolean searching) {
         try {
             Map<String, Object> chunk = new LinkedHashMap<>();
             chunk.put("modelId", modelId);
             chunk.put("content", content);
             chunk.put("done", done);
             if (error != null) chunk.put("error", error);
+            if (searching) chunk.put("searching", true);
             return ServerSentEvent.<String>builder()
                     .data(objectMapper.writeValueAsString(chunk))
                     .build();
@@ -304,9 +371,19 @@ public class ChatService {
         }
     }
 
-    private ChatModel createFreshChatModel() {
-        DashScopeApi api = DashScopeApi.builder().apiKey(dashScopeApiKey).build();
-        return new DashScopeChatModel.Builder((DashScopeChatModel) chatModel).dashScopeApi(api).build();
+    private ServerSentEvent<String> buildConversationIdEvent(String conversationId) {
+        try {
+            Map<String, Object> meta = new LinkedHashMap<>();
+            meta.put("type", "conversation");
+            meta.put("conversationId", conversationId);
+            return ServerSentEvent.<String>builder()
+                    .data(objectMapper.writeValueAsString(meta))
+                    .build();
+        } catch (Exception e) {
+            return ServerSentEvent.<String>builder()
+                    .data("{\"type\":\"conversation\",\"conversationId\":\"" + conversationId + "\"}")
+                    .build();
+        }
     }
 
     private String resolveModelName(String modelId) {
@@ -331,13 +408,16 @@ public class ChatService {
 
         int limit = request.getLimit() <= 0 ? 50 : Math.min(request.getLimit(), 200);
 
-        List<Message> rows = messageRepository.selectList(
-                new LambdaQueryWrapper<Message>()
-                        .eq(Message::getUserId, request.getUserId().trim())
-                        .eq(Message::getModelId, request.getModelId().trim())
-                        .orderByDesc(Message::getTimestamp)
-                        .last("limit " + limit)
-        );
+        LambdaQueryWrapper<Message> query = new LambdaQueryWrapper<Message>()
+                .eq(Message::getUserId, request.getUserId().trim())
+                .eq(Message::getModelId, request.getModelId().trim());
+        // Scope to conversation if provided
+        if (request.getConversationId() != null && !request.getConversationId().isBlank()) {
+            query.eq(Message::getConversationId, request.getConversationId().trim());
+        }
+        query.orderByDesc(Message::getTimestamp).last("limit " + limit);
+
+        List<Message> rows = messageRepository.selectList(query);
 
         // Reverse to chronological order for the client
         Collections.reverse(rows);

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronDown, RotateCcw, Trash2, Download } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { CodeBlock } from "@/components/CodeBlock";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +32,10 @@ interface ChatPanelProps {
   active?: boolean;
   onActivate?: () => void;
   onModelChange?: (modelId: string) => void;
+  onClear?: () => void;
+  onRegenerate?: () => void;
   hideModelSwitcher?: boolean;
+  isStreaming?: boolean;
 }
 
 export function ChatPanel({
@@ -42,7 +46,10 @@ export function ChatPanel({
   active = false,
   onActivate,
   onModelChange,
+  onClear,
+  onRegenerate,
   hideModelSwitcher = false,
+  isStreaming = false,
 }: ChatPanelProps) {
   const [grouped, setGrouped] = useState<Record<string, ModelInfo[]>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -62,17 +69,12 @@ export function ChatPanel({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const isStreaming =
-    messages.length > 0 &&
-    messages[messages.length - 1].role === "assistant" &&
-    !messages[messages.length - 1].isError;
-
   return (
     <div
-      className={`relative h-full min-h-0 min-w-0 flex flex-col bg-white/80 backdrop-blur-sm rounded-2xl border shadow-sm overflow-hidden transition-all duration-200 focus-visible:outline-none ${
+      className={`relative h-full min-h-0 min-w-0 flex flex-col bg-white/80 dark:bg-neutral-900/80 backdrop-blur-sm rounded-2xl border shadow-sm overflow-hidden transition-all duration-200 focus-visible:outline-none ${
         active
-          ? "border-blue-400/60 ring-2 ring-blue-200/50 shadow-blue-100/50 z-10"
-          : "border-gray-200/60 hover:border-gray-300/80 z-0"
+          ? "border-blue-400/60 ring-2 ring-blue-200/50 shadow-blue-100/50 dark:border-blue-500/40 dark:ring-blue-900/30 z-10"
+          : "border-gray-200/60 dark:border-neutral-700/60 hover:border-gray-300/80 dark:hover:border-neutral-600/80 z-0"
       }`}
       role="group"
       tabIndex={0}
@@ -80,23 +82,23 @@ export function ChatPanel({
       onFocus={() => onActivate?.()}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100/80 bg-white/60">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100/80 dark:border-neutral-800/80 bg-white/60 dark:bg-neutral-900/60">
         {hideModelSwitcher ? (
           <div className="flex items-center gap-2 px-2 py-1.5">
             <img src={modelIcon} alt={modelName} className="w-5 h-5 rounded-md" />
-            <span className="font-medium text-gray-800 text-sm">{modelName}</span>
+            <span className="font-medium text-gray-800 dark:text-gray-200 text-sm">{modelName}</span>
           </div>
         ) : (
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 hover:bg-gray-100/60 rounded-lg px-2 py-1.5 transition-colors">
               <img src={modelIcon} alt={modelName} className="w-5 h-5 rounded-md" />
-              <span className="font-medium text-gray-800 text-sm">{modelName}</span>
+              <span className="font-medium text-gray-800 dark:text-gray-200 text-sm">{modelName}</span>
               <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
               {Object.entries(grouped).map(([provider, models]) => (
                 <div key={provider}>
-                  <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
+                  <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50 dark:border-neutral-800">
                     {provider}
                   </div>
                   {models.map((model) => (
@@ -104,7 +106,7 @@ export function ChatPanel({
                       key={`${provider}-${model.id}`}
                       onSelect={() => onModelChange?.(model.id)}
                       className={`flex items-center gap-2 pl-4 ${
-                        model.id === modelId ? "bg-blue-50 text-blue-700" : ""
+                        model.id === modelId ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700" : ""
                       }`}
                     >
                       <img src={model.icon} alt={model.name} className="w-4 h-4 rounded" />
@@ -119,25 +121,50 @@ export function ChatPanel({
 
         <div className="flex items-center gap-0.5">
           {isStreaming && (
-            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 mr-1">
+            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/30 mr-1">
               <div className="flex gap-0.5">
                 <span className="w-1 h-1 bg-blue-400 rounded-full animate-bounce [animation-delay:0ms]" />
                 <span className="w-1 h-1 bg-blue-400 rounded-full animate-bounce [animation-delay:150ms]" />
                 <span className="w-1 h-1 bg-blue-400 rounded-full animate-bounce [animation-delay:300ms]" />
               </div>
-              <span className="text-[10px] text-blue-500 font-medium">生成中</span>
+              <span className="text-[10px] text-blue-500 dark:text-blue-400 font-medium">生成中</span>
             </div>
           )}
           <button
             type="button"
-            className="p-1.5 rounded-md hover:bg-gray-100/60 text-gray-400 hover:text-gray-600 transition-colors"
+            onClick={() => onRegenerate?.()}
+            disabled={isStreaming || !messages.some((m) => m.role === "user")}
+            className="p-1.5 rounded-md hover:bg-gray-100/60 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="重新生成"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
-            className="p-1.5 rounded-md hover:bg-gray-100/60 text-gray-400 hover:text-gray-600 transition-colors"
+            onClick={() => {
+              if (messages.length === 0) return;
+              const lines = [`# ${modelName} 对话导出\n`];
+              messages.forEach((m) => {
+                lines.push(m.role === "user" ? `## 👤 用户\n\n${m.content}\n` : `## 🤖 ${modelName}\n\n${m.content}\n`);
+              });
+              const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = `${modelName}-chat-${new Date().toISOString().slice(0, 10)}.md`;
+              a.click();
+              URL.revokeObjectURL(a.href);
+            }}
+            disabled={messages.length === 0}
+            className="p-1.5 rounded-md hover:bg-gray-100/60 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="导出 Markdown"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onClear?.()}
+            disabled={messages.length === 0}
+            className="p-1.5 rounded-md hover:bg-gray-100/60 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="清空对话"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -149,10 +176,10 @@ export function ChatPanel({
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <div className="text-center text-gray-400">
+            <div className="text-center text-gray-400 dark:text-gray-200">
               <img src={modelIcon} alt={modelName} className="w-14 h-14 rounded-2xl mx-auto mb-3 opacity-40" />
-              <p className="text-sm font-medium text-gray-500">{modelName}</p>
-              <p className="text-xs text-gray-400 mt-1">输入消息开始对话</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-200">{modelName}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-200 mt-1">输入消息开始对话</p>
             </div>
           </div>
         ) : (
@@ -176,13 +203,13 @@ export function ChatPanel({
                     message.role === "user"
                       ? "bg-neutral-800 text-white rounded-br-md"
                       : message.isError
-                        ? "bg-red-50 text-red-600 border border-red-200 rounded-bl-md"
-                        : "bg-gray-50 text-gray-800 border border-gray-100 rounded-bl-md"
+                        ? "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-bl-md"
+                        : "bg-gray-50 dark:bg-neutral-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-neutral-700 rounded-bl-md"
                   }`}
                 >
                   {message.role === "assistant" && !message.isError ? (
                     <div className="prose prose-sm prose-gray max-w-none text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:bg-gray-800 [&_pre]:text-gray-100 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_code]:text-xs [&_code]:bg-gray-200 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
                         {message.content}
                       </ReactMarkdown>
                     </div>

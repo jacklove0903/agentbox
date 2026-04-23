@@ -7,6 +7,7 @@ import java.util.Map;
 @Data
 public class MessageRequest {
     private String userId;
+    private String conversationId;
     private String message;
     private List<String> modelIds;
     private Map<String, Object> options;

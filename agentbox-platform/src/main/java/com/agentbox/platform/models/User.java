@@ -4,27 +4,21 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
+
 import java.time.LocalDateTime;
 
 @Data
-@TableName("messages")
-public class Message {
+@TableName("users")
+public class User {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private String userId;
+    private String username;
 
-    private String conversationId;
+    private String email;
 
-    private String modelId;
+    // BCrypt hash, never exposed in responses.
+    private String password;
 
-    private Role role;
-
-    private String content;
-
-    private LocalDateTime timestamp = LocalDateTime.now();
-
-    public enum Role {
-        USER, AI
-    }
+    private LocalDateTime createdAt;
 }

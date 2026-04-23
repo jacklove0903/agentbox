@@ -52,7 +52,7 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
   };
 
   return (
-    <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg border border-white/60 p-3">
+    <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md rounded-2xl shadow-lg border border-white/60 dark:border-neutral-700/60 p-3">
       {/* Input Area */}
       <div className="flex items-end gap-3">
         <div className="flex-1">
@@ -61,7 +61,7 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="输入消息，Shift+Enter 换行"
-            className="w-full resize-none bg-transparent border-0 outline-none text-gray-800 placeholder-gray-400 text-sm leading-relaxed min-h-[24px] max-h-[150px]"
+            className="w-full resize-none bg-transparent border-0 outline-none text-gray-800 dark:text-gray-200 placeholder-gray-400 text-sm leading-relaxed min-h-[24px] max-h-[150px]"
             rows={1}
             disabled={isLoading}
           />
@@ -76,7 +76,7 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
       )}
 
       {/* Bottom Actions */}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-neutral-800">
         <div className="flex items-center gap-1">
           <TooltipProvider>
             {/* Web Search Toggle */}

@@ -1,0 +1,253 @@
+"use client";
+
+import { useState, useRef, useEffect, useCallback } from "react";
+import { ArrowRightLeft, Copy, Check, Loader2 } from "lucide-react";
+import { apiFetch } from "@/lib/api";
+
+const DEBOUNCE_MS = 500;
+
+const LANGUAGES = [
+  { code: "auto", label: "自动检测" },
+  { code: "zh", label: "中文" },
+  { code: "en", label: "English" },
+  { code: "ja", label: "日本語" },
+  { code: "ko", label: "한국어" },
+  { code: "fr", label: "Français" },
+  { code: "de", label: "Deutsch" },
+  { code: "es", label: "Español" },
+  { code: "ru", label: "Русский" },
+  { code: "pt", label: "Português" },
+  { code: "ar", label: "العربية" },
+];
+
+export function TranslatorPanel() {
+  const [sourceLang, setSourceLang] = useState("auto");
+  const [targetLang, setTargetLang] = useState("en");
+  const [sourceText, setSourceText] = useState("");
+  const [targetText, setTargetText] = useState("");
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSwapLanguages = () => {
+    if (sourceLang === "auto") return;
+    setSourceLang(targetLang);
+    setTargetLang(sourceLang);
+    setSourceText(targetText);
+    setTargetText(sourceText);
+  };
+
+  const doTranslate = useCallback(async (text: string, srcLang: string, tgtLang: string) => {
+    if (!text.trim()) {
+      setTargetText("");
+      return;
+    }
+
+    // Cancel previous in-flight request
+    if (abortRef.current) abortRef.current.abort();
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setIsTranslating(true);
+    setTargetText("");
+
+    const sourceName = LANGUAGES.find((l) => l.code === srcLang)?.label ?? srcLang;
+    const targetName = LANGUAGES.find((l) => l.code === tgtLang)?.label ?? tgtLang;
+
+    const prompt =
+      srcLang === "auto"
+        ? `请将以下内容翻译为${targetName}，只输出翻译结果，不要添加任何解释、引号或额外文字：\n\n${text}`
+        : `请将以下${sourceName}内容翻译为${targetName}，只输出翻译结果，不要添加任何解释、引号或额外文字：\n\n${text}`;
+
+    try {
+      const res = await apiFetch("/api/chat/stream", {
+        method: "POST",
+        body: JSON.stringify({
+          message: prompt,
+          modelIds: ["qwen2.5-7b"],
+          options: { webSearch: false, imageGen: false },
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) throw new Error(`翻译请求失败: ${res.status}`);
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let sseBuffer = "";
+      let accumulated = "";
+
+      while (true) {
+        let readResult: ReadableStreamReadResult<Uint8Array>;
+        try {
+          readResult = await reader.read();
+        } catch {
+          if (accumulated) break;
+          throw new Error("network error");
+        }
+        if (readResult.done) break;
+
+        sseBuffer += decoder.decode(readResult.value, { stream: true });
+        const parts = sseBuffer.split("\n\n");
+        sseBuffer = parts.pop() || "";
+
+        for (const part of parts) {
+          const dataLine = part.split("\n").find((l) => l.startsWith("data:"));
+          if (!dataLine) continue;
+
+          let chunk: { modelId: string; content: string; done: boolean; error?: string };
+          try {
+            chunk = JSON.parse(dataLine.slice(5));
+          } catch {
+            continue;
+          }
+
+          if (chunk.error) {
+            setTargetText(`翻译出错: ${chunk.error}`);
+            break;
+          }
+          if (chunk.done) break;
+
+          accumulated += chunk.content;
+          setTargetText(accumulated);
+        }
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
+      setTargetText(`翻译失败: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setIsTranslating(false);
+      abortRef.current = null;
+    }
+  }, []);
+
+  // Auto-translate with debounce when sourceText, sourceLang or targetLang changes
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (!sourceText.trim()) {
+      setTargetText("");
+      return;
+    }
+
+    debounceRef.current = setTimeout(() => {
+      doTranslate(sourceText, sourceLang, targetLang);
+    }, DEBOUNCE_MS);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [sourceText, sourceLang, targetLang, doTranslate]);
+
+  const handleCopy = async () => {
+    if (!targetText) return;
+    await navigator.clipboard.writeText(targetText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="h-full flex flex-col p-6 max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">AI Translator</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          输入即翻译，基于大语言模型的实时智能翻译
+        </p>
+      </div>
+
+      {/* Language Selector Bar */}
+      <div className="flex items-center gap-3 mb-4">
+        <select
+          value={sourceLang}
+          onChange={(e) => setSourceLang(e.target.value)}
+          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
+        >
+          {LANGUAGES.map((lang) => (
+            <option key={lang.code} value={lang.code}>
+              {lang.label}
+            </option>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          onClick={handleSwapLanguages}
+          disabled={sourceLang === "auto"}
+          className="p-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          title="交换语言"
+        >
+          <ArrowRightLeft className="w-4 h-4" />
+        </button>
+
+        <select
+          value={targetLang}
+          onChange={(e) => setTargetLang(e.target.value)}
+          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
+        >
+          {LANGUAGES.filter((l) => l.code !== "auto").map((lang) => (
+            <option key={lang.code} value={lang.code}>
+              {lang.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Translation Panels */}
+      <div className="flex-1 min-h-0 grid grid-cols-2 gap-4">
+        {/* Source */}
+        <div className="flex flex-col rounded-2xl border border-gray-200 bg-white overflow-hidden">
+          <textarea
+            value={sourceText}
+            onChange={(e) => setSourceText(e.target.value)}
+            placeholder="输入文本，自动翻译..."
+            className="flex-1 p-4 resize-none bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none leading-relaxed"
+          />
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100">
+            <span className="text-xs text-gray-400">
+              {sourceText.length} 字符
+            </span>
+            {isTranslating && (
+              <div className="flex items-center gap-1.5 text-blue-500">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span className="text-xs font-medium">翻译中...</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Target */}
+        <div className="flex flex-col rounded-2xl border border-gray-200 bg-white overflow-hidden">
+          <div className="flex-1 p-4 overflow-y-auto">
+            {targetText ? (
+              <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                {targetText}
+              </p>
+            ) : (
+              <p className="text-sm text-gray-400">
+                {sourceText.trim() ? "正在等待输入完成..." : "翻译结果将显示在这里..."}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center justify-end px-4 py-2.5 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={handleCopy}
+              disabled={!targetText || isTranslating}
+              className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="复制结果"
+            >
+              {copied ? (
+                <Check className="w-4 h-4 text-green-500" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

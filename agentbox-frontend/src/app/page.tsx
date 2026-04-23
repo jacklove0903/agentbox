@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ChatInput } from "@/components/ChatInput";
 import { WelcomeDialog } from "@/components/WelcomeDialog";
-import { Sidebar } from "@/components/SideBar";
+import { Sidebar, type ConversationInfo } from "@/components/SideBar";
+import { TranslatorPanel } from "@/components/TranslatorPanel";
+import { WebSummarizerPanel } from "@/components/WebSummarizerPanel";
+import { ImageGeneratorPanel } from "@/components/ImageGeneratorPanel";
+import { useAuth } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 interface ModelInfo {
   id: string;
@@ -19,6 +25,16 @@ interface Message {
 }
 
 export default function Home() {
+  const router = useRouter();
+  const { token, initializing } = useAuth();
+
+  // Redirect unauthenticated visitors to /login once auth state is resolved.
+  useEffect(() => {
+    if (!initializing && !token) {
+      router.replace("/login");
+    }
+  }, [initializing, token, router]);
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedLayout, setSelectedLayout] = useState(1);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
@@ -28,9 +44,48 @@ export default function Home() {
   const [allModels, setAllModels] = useState<ModelInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [panelModelIds, setPanelModelIds] = useState<string[]>([]);
+  const [streamingModels, setStreamingModels] = useState<Set<string>>(new Set());
+  const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationInfo[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   // View mode: 'all-in-one' = multi-panel grid; 'single' = one standalone chat for singleModelId.
   const [viewMode, setViewMode] = useState<"all-in-one" | "single">("all-in-one");
   const [singleModelId, setSingleModelId] = useState<string | null>(null);
+
+  // Tracks which modelIds have already had history fetched (avoid duplicate loads).
+  const loadedHistoryRef = useRef<Set<string>>(new Set());
+
+  // Fetch persisted history for a model and merge into state (only if not loaded yet).
+  const loadHistory = useCallback(async (mid: string) => {
+    if (!mid) return;
+    if (loadedHistoryRef.current.has(mid)) return;
+    loadedHistoryRef.current.add(mid);
+
+    try {
+      const res = await apiFetch("/api/chat/history", {
+        method: "POST",
+        body: JSON.stringify({ modelId: mid, limit: 50, conversationId: activeConversationId || undefined }),
+      });
+      if (!res.ok) throw new Error(`history request failed: ${res.status}`);
+      const data = (await res.json()) as {
+        messages?: Array<{ role: "user" | "assistant"; content: string }>;
+      };
+      const loaded: Message[] = (data.messages || []).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      // Only populate if the user hasn't already started chatting in this tab.
+      setMessages((prev) => {
+        if (prev[mid] && prev[mid].length > 0) return prev;
+        return { ...prev, [mid]: loaded };
+      });
+    } catch (e) {
+      console.error("Failed to load history for", mid, e);
+      // Allow retry on next trigger.
+      loadedHistoryRef.current.delete(mid);
+    }
+  }, [activeConversationId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,7 +93,7 @@ export default function Home() {
     async function loadModels() {
       try {
         // Always fetch fresh from the same endpoint as Sidebar so icon URLs match.
-        const res = await fetch("http://localhost:8080/api/models/getmodels");
+        const res = await apiFetch("/api/models/getmodels");
         const data = (await res.json()) as ModelInfo[];
         if (!cancelled) {
           setAllModels(data);
@@ -59,6 +114,76 @@ export default function Home() {
     };
   }, []);
 
+  // Fetch user's conversations
+  const fetchConversations = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/conversations");
+      if (!res.ok) return;
+      const data = (await res.json()) as ConversationInfo[];
+      setConversations(data);
+    } catch (e) {
+      console.error("Failed to load conversations:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchConversations();
+  }, [token, fetchConversations]);
+
+  // Conversation management handlers
+  const handleConversationCreate = async () => {
+    try {
+      const res = await apiFetch("/api/conversations", {
+        method: "POST",
+        body: JSON.stringify({ title: "新对话" }),
+      });
+      if (!res.ok) return;
+      const conv = (await res.json()) as ConversationInfo;
+      setConversations((prev) => [conv, ...prev]);
+      handleConversationSelect(conv.id);
+    } catch (e) {
+      console.error("Failed to create conversation:", e);
+    }
+  };
+
+  const handleConversationDelete = async (id: string) => {
+    try {
+      await apiFetch(`/api/conversations/${id}`, { method: "DELETE" });
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (activeConversationId === id) {
+        setActiveConversationId(null);
+        setMessages({});
+        loadedHistoryRef.current.clear();
+      }
+    } catch (e) {
+      console.error("Failed to delete conversation:", e);
+    }
+  };
+
+  const handleConversationRename = async (id: string, title: string) => {
+    try {
+      await apiFetch(`/api/conversations/${id}/title`, {
+        method: "PUT",
+        body: JSON.stringify({ title }),
+      });
+      setConversations((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, title } : c))
+      );
+    } catch (e) {
+      console.error("Failed to rename conversation:", e);
+    }
+  };
+
+  const handleConversationSelect = (id: string | null) => {
+    if (id === activeConversationId) return;
+    setActiveConversationId(id);
+    setMessages({});
+    loadedHistoryRef.current.clear();
+    // Dismiss any active tool so chat view is shown
+    setActiveTool(null);
+  };
+
   // Click a model in the sidebar → enter single-model view for that model.
   // Messages are keyed by modelId at the top level, so chat history is shared
   // between all-in-one and single views for the same model.
@@ -66,6 +191,7 @@ export default function Home() {
     setViewMode("single");
     setSingleModelId(modelId);
     setActiveModelId(modelId);
+    loadHistory(modelId);
   };
 
   // Click a layout button → enter/stay in all-in-one view and update layout.
@@ -79,16 +205,17 @@ export default function Home() {
     mid: string,
     message: string,
     options: { webSearch: boolean; imageGen: boolean },
+    conversationId?: string | null,
   ) => {
+    setStreamingModels((prev) => new Set(prev).add(mid));
     try {
-      const res = await fetch("http://localhost:8080/api/chat/stream", {
+      const res = await apiFetch("/api/chat/stream", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: "demo",
           message,
           modelIds: [mid],
           options,
+          conversationId: conversationId || undefined,
         }),
       });
 
@@ -100,12 +227,21 @@ export default function Home() {
       let sseBuffer = "";
       let accumulated = "";
       let streamStarted = false;
+      let streamDone = false;
+      let searchingPhase = false;
 
       while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        let readResult: ReadableStreamReadResult<Uint8Array>;
+        try {
+          readResult = await reader.read();
+        } catch {
+          // Connection closed after content already delivered — not a real error.
+          if (streamStarted) break;
+          throw new Error("network error");
+        }
+        if (readResult.done) break;
 
-        sseBuffer += decoder.decode(value, { stream: true });
+        sseBuffer += decoder.decode(readResult.value, { stream: true });
         const parts = sseBuffer.split("\n\n");
         sseBuffer = parts.pop() || "";
 
@@ -113,12 +249,21 @@ export default function Home() {
           const dataLine = part.split("\n").find((l) => l.startsWith("data:"));
           if (!dataLine) continue;
 
-          let chunk: { modelId: string; content: string; done: boolean; error?: string };
+          let parsed: any;
           try {
-            chunk = JSON.parse(dataLine.slice(5));
+            parsed = JSON.parse(dataLine.slice(5));
           } catch {
             continue;
           }
+
+          // Handle conversation meta event (auto-created conversationId)
+          if (parsed.type === "conversation" && parsed.conversationId) {
+            setActiveConversationId((prev) => prev || parsed.conversationId);
+            fetchConversations();
+            continue;
+          }
+
+          const chunk = parsed as { modelId: string; content: string; done: boolean; error?: string; searching?: boolean };
 
           if (chunk.error) {
             setMessages((prev) => ({
@@ -131,19 +276,49 @@ export default function Home() {
             continue;
           }
 
-          if (chunk.done) continue;
+          if (chunk.done) {
+            streamDone = true;
+            continue;
+          }
+
+          // Handle web search indicator
+          if (chunk.searching) {
+            if (!searchingPhase) {
+              searchingPhase = true;
+              setMessages((prev) => ({
+                ...prev,
+                [mid]: [
+                  ...(prev[mid] || []),
+                  { role: "assistant" as const, content: "\uD83D\uDD0D 正在搜索网络..." },
+                ],
+              }));
+            }
+            continue;
+          }
 
           accumulated += chunk.content;
 
           if (!streamStarted) {
             streamStarted = true;
-            setMessages((prev) => ({
-              ...prev,
-              [mid]: [
-                ...(prev[mid] || []),
-                { role: "assistant" as const, content: accumulated },
-              ],
-            }));
+            if (searchingPhase) {
+              // Replace the searching placeholder with real content
+              setMessages((prev) => {
+                const msgs = [...(prev[mid] || [])];
+                const lastIdx = msgs.length - 1;
+                if (lastIdx >= 0) {
+                  msgs[lastIdx] = { role: "assistant" as const, content: accumulated };
+                }
+                return { ...prev, [mid]: msgs };
+              });
+            } else {
+              setMessages((prev) => ({
+                ...prev,
+                [mid]: [
+                  ...(prev[mid] || []),
+                  { role: "assistant" as const, content: accumulated },
+                ],
+              }));
+            }
           } else {
             setMessages((prev) => {
               const msgs = [...(prev[mid] || [])];
@@ -155,6 +330,7 @@ export default function Home() {
             });
           }
         }
+        if (streamDone) break;
       }
     } catch (e) {
       setMessages((prev) => ({
@@ -168,6 +344,12 @@ export default function Home() {
           },
         ],
       }));
+    } finally {
+      setStreamingModels((prev) => {
+        const next = new Set(prev);
+        next.delete(mid);
+        return next;
+      });
     }
   };
 
@@ -181,6 +363,44 @@ export default function Home() {
     viewMode === "single" && singleModelId
       ? allModels.find((m) => m.id === singleModelId) ?? null
       : null;
+
+  // Clear all messages for a given model.
+  // NOTE: this only clears local state; server-side history is NOT deleted.
+  // We drop the loaded flag so leaving and returning to this model re-pulls
+  // the persisted history.
+  const handleClearChat = (mid: string) => {
+    setMessages((prev) => {
+      const next = { ...prev };
+      delete next[mid];
+      return next;
+    });
+    loadedHistoryRef.current.delete(mid);
+  };
+
+  // Re-run the last user message for a given model:
+  // 1) strip trailing assistant replies back to the last user message
+  // 2) stream a fresh response
+  const handleRegenerate = async (mid: string) => {
+    const existing = messages[mid] || [];
+    // Find last user message index.
+    let lastUserIdx = -1;
+    for (let i = existing.length - 1; i >= 0; i--) {
+      if (existing[i].role === "user") {
+        lastUserIdx = i;
+        break;
+      }
+    }
+    if (lastUserIdx === -1) return;
+
+    const lastUserMessage = existing[lastUserIdx].content;
+    // Keep messages up to and including the last user message; drop everything after.
+    setMessages((prev) => ({
+      ...prev,
+      [mid]: (prev[mid] || []).slice(0, lastUserIdx + 1),
+    }));
+
+    await streamOneModel(mid, lastUserMessage, { webSearch: false, imageGen: false }, activeConversationId);
+  };
 
   const handleSendMessage = async (params: {
     message: string;
@@ -211,10 +431,9 @@ export default function Home() {
       return next;
     });
 
-    // 2. Fire N independent HTTP requests in parallel.
-    await Promise.all(
-      effectiveModelIds.map((mid) => streamOneModel(mid, message, options)),
-    );
+    // 2. Fire N independent HTTP requests in parallel (non-blocking so the
+    //    input is immediately re-enabled for the next turn).
+    effectiveModelIds.forEach((mid) => streamOneModel(mid, message, options, activeConversationId));
   };
 
   useEffect(() => {
@@ -279,6 +498,18 @@ export default function Home() {
     });
   }, [viewMode, selectedLayout, selectedModels, allModels.length]);
 
+  // Auto-load persisted history whenever a new model becomes visible in any panel.
+  useEffect(() => {
+    if (loading) return;
+    const targets =
+      viewMode === "single" && singleModelId
+        ? [singleModelId]
+        : panelModelIds;
+    for (const mid of targets) {
+      if (mid) loadHistory(mid);
+    }
+  }, [viewMode, singleModelId, panelModelIds, loading, loadHistory]);
+
   const handlePanelModelChange = (panelIndex: number, modelId: string) => {
     setPanelModelIds((prev) => {
       const next = prev.length > 0 ? [...prev] : [];
@@ -289,6 +520,7 @@ export default function Home() {
 
     setSelectedModels((prev) => (prev.includes(modelId) ? prev : [...prev, modelId]));
     setActiveModelId(modelId);
+    loadHistory(modelId);
   };
 
   const getGridCols = () => {
@@ -299,27 +531,61 @@ export default function Home() {
     return "grid-cols-3 grid-rows-2";
   };
 
+  // Gate the whole app behind auth. Returning early before hooks above would
+  // violate React rules, so we render a lightweight placeholder here instead.
+  if (initializing || !token) {
+    return (
+      <div className="h-screen flex items-center justify-center text-neutral-500">
+        <p className="text-sm">加载中…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen flex overflow-hidden">
       {/* Sidebar */}
       <Sidebar
         // In single mode, no layout is highlighted (pass 0 so none match).
-        selectedLayout={viewMode === "all-in-one" ? selectedLayout : 0}
-        onLayoutChange={handleLayoutChange}
+        selectedLayout={viewMode === "all-in-one" && !activeTool ? selectedLayout : 0}
+        onLayoutChange={(l) => { setActiveTool(null); handleLayoutChange(l); }}
         selectedModels={
           viewMode === "single" && singleModelId
             ? [singleModelId]
             : activeModels.map((m) => m.id)
         }
-        onModelToggle={handleModelToggle}
+        onModelToggle={(id) => { setActiveTool(null); handleModelToggle(id); }}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        activeTool={activeTool}
+        onToolSelect={setActiveTool}
+        conversations={conversations}
+        activeConversationId={activeConversationId}
+        onConversationSelect={handleConversationSelect}
+        onConversationCreate={handleConversationCreate}
+        onConversationDelete={handleConversationDelete}
+        onConversationRename={handleConversationRename}
       />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 main-gradient">
-        {/* Chat area — renders differently based on viewMode */}
-        {viewMode === "single" ? (
+        {/* Tool views */}
+        {activeTool === "translator" ? (
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <TranslatorPanel />
+          </div>
+        ) : activeTool === "summarizer" ? (
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <WebSummarizerPanel />
+          </div>
+        ) : activeTool === "image-gen" ? (
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <ImageGeneratorPanel />
+          </div>
+        ) : activeTool ? (
+          <div className="flex-1 flex items-center justify-center text-neutral-500">
+            <p className="text-lg font-medium">即将推出...</p>
+          </div>
+        ) : viewMode === "single" ? (
           <div className="flex-1 min-h-0 p-4">
             {loading ? (
               <div className="h-full flex items-center justify-center text-neutral-500">
@@ -333,7 +599,10 @@ export default function Home() {
                 messages={messages[singleModelView.id] || []}
                 active={true}
                 hideModelSwitcher={true}
+                isStreaming={streamingModels.has(singleModelView.id)}
                 onActivate={() => setActiveModelId(singleModelView.id)}
+                onClear={() => handleClearChat(singleModelView.id)}
+                onRegenerate={() => handleRegenerate(singleModelView.id)}
               />
             ) : (
               <div className="h-full flex items-center justify-center text-neutral-500">
@@ -359,10 +628,13 @@ export default function Home() {
                     modelIcon={model.icon}
                     messages={messages[model.id] || []}
                     active={activeModelId === model.id}
+                    isStreaming={streamingModels.has(model.id)}
                     onActivate={() => setActiveModelId(model.id)}
                     onModelChange={(newModelId) =>
                       handlePanelModelChange(idx, newModelId)
                     }
+                    onClear={() => handleClearChat(model.id)}
+                    onRegenerate={() => handleRegenerate(model.id)}
                   />
                 </div>
               ))
@@ -377,8 +649,8 @@ export default function Home() {
           </div>
         )}
 
-        {/* Input Area */}
-        <div className="p-4 pt-0">
+        {/* Input Area — hidden when a tool is active */}
+        {!activeTool && <div className="p-4 pt-0">
           <ChatInput
             onSendMessage={handleSendMessage}
             modelIds={
@@ -387,7 +659,7 @@ export default function Home() {
                 : activeModels.map((m) => m.id)
             }
           />
-        </div>
+        </div>}
       </div>
 
       {/* Welcome Dialog */}
