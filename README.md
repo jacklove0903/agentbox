@@ -1,79 +1,118 @@
-```
-# AgentBox 🤖
+# AgentBox
 
-> 多模型 AI 聊天平台 - 一个问题，多个 AI 回答
+> 多模型 AI 聊天平台 — 一个问题，多个 AI 同时回答，对比选出最佳
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://openjdk.java.net/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.0-green.svg)](https://spring.io/projects/spring-boot)
-[![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-green.svg)](https://spring.io/projects/spring-boot)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 ---
 
-## ✨ 项目简介
+## 项目简介
 
-**AgentBox** 是一个多模型 AI 聊天平台，类似 [ChatHub](https://chathub.gg/)，支持同时调用多个大语言模型，对比不同 AI 的回答质量。
+**AgentBox** 是一个多模型 All-In-One AI 聊天平台，支持同时向多个大语言模型发送同一问题，实时对比不同 AI 的回答质量，并投票选出最佳回答。
 
-> 🎯 **核心理念**：任何单一 AI 都可能产生幻觉，获得多个视角，增强信心。
+**核心理念**：任何单一 AI 都可能产生幻觉，多个视角交叉验证，增强信心。
 
 ---
 
-## 🚀 功能特性
+## 已实现功能
 
 | 功能 | 说明 |
 |------|------|
-| 🔄 **多模型对比** | 同时调用 8 家厂商 20+ 模型，对比回答质量 |
-| 💬 **智能对话** | 流式响应，打字机效果，实时显示 |
-| 📄 **文档分析** | 上传 PDF/Word 文档，AI 智能分析 |
-| 🧠 **知识库 RAG** | 基于向量检索的增强生成 |
-| 📊 **会话管理** | 历史对话记录，多轮对话记忆 |
-| 🎨 **现代 UI** | React + Ant Design 精美界面 |
+| **多模型并排对比** | 1-6 面板网格布局，同时向多个模型提问，实时流式对比 |
+| **单模型对话** | 点击侧边栏模型进入独立聊天视图 |
+| **会话管理** | 多会话支持，新建 / 切换 / 重命名 / 删除对话 |
+| **联网搜索** | Web Search 开关，DuckDuckGo 搜索结果注入 LLM 上下文 |
+| **模型投票排行** | 多模型对比时投票选最佳，个人模型胜率排行榜 |
+| **AI 图片生成** | 基于硅基流动 FLUX 模型的文生图 |
+| **AI 翻译** | 多语言互译工具面板 |
+| **网页摘要** | 输入 URL 自动抓取并 AI 总结 |
+| **用户认证** | 注册 / 登录 / JWT Token 鉴权 |
+| **暗色模式** | 全局 Light / Dark 主题切换 |
+| **Markdown 渲染** | 代码高亮 + 一键复制 + GFM 表格支持 |
+| **对话导出** | 导出为 Markdown 文件 |
 
 ---
 
-## 🛠️ 技术栈
+## 技术栈
 
 ### 后端
+
 | 技术 | 版本 | 说明 |
 |------|------|------|
-| **框架** | Spring Boot 3.2.0 | Java 后端框架 |
-| **ORM** | MyBatis-Plus 3.5.5 | 数据持久层 |
-| **AI 框架** | Spring AI Alibaba 1.1.2 | 大模型集成 |
-| **数据库** | PostgreSQL 16 | 关系型数据库 |
-| **向量库** | PGVector | 向量检索 |
-| **缓存** | Redis | 会话缓存 |
+| Spring Boot | 3.5.13 | Java 后端框架 |
+| Spring AI | 1.1.4 | OpenAI 兼容接口集成 |
+| MyBatis-Plus | 3.5.12 | ORM / 数据持久层 |
+| PostgreSQL | 16 | 关系型数据库 |
+| JWT (jjwt) | 0.11.5 | 用户认证 |
 
 ### 前端
+
 | 技术 | 版本 | 说明 |
 |------|------|------|
-| **框架** | React 18 | UI 框架 |
-| **语言** | TypeScript | 类型安全 |
-| **UI 库** | Ant Design | 组件库 |
-| **构建** | Vite | 快速构建 |
-
-### 运维
-| 技术 | 说明 |
-|------|------|
-| **Docker** | 容器化部署 |
-| **Docker Compose** | 服务编排 |
+| Next.js | 15.3 | React 全栈框架 (Turbopack) |
+| React | 18 | UI 框架 |
+| TypeScript | 5.8 | 类型安全 |
+| Tailwind CSS | 3.4 | 原子化样式 |
+| shadcn/ui + Radix | latest | 组件库 |
+| Lucide | latest | 图标库 |
+| react-markdown | 10 | Markdown 渲染 |
 
 ---
 
-## 📁 项目结构
+## 支持的 AI 模型
+
+通过 [硅基流动 (SiliconFlow)](https://siliconflow.cn/) OpenAI 兼容接口统一调用：
+
+| 厂商 | 模型 |
+|------|------|
+| 阿里 Qwen | Qwen3-8B, Qwen2.5-7B-Instruct, Qwen2.5-Coder-7B-Instruct |
+| DeepSeek | DeepSeek-V3, DeepSeek-R1 (蒸馏版) |
+| 智谱 AI | GLM-4-9B-Chat, GLM-Z1-9B |
+| 书生 InternLM | InternLM2.5-7B-Chat |
+| 01.AI | Yi-1.5-9B-Chat |
+
+> 模型列表可通过 `migration_v4_siliconflow.sql` 自由扩展。
+
+---
+
+## 项目结构
+
+```
+AgentBox-Ai/
+├── agentbox-platform/          # Spring Boot 后端
+│   └── src/main/java/com/agentbox/platform/
+│       ├── controllers/        # REST 控制器
+│       ├── services/           # 业务逻辑 (ChatService, AuthService, ...)
+│       ├── models/             # 实体类
+│       ├── repositories/       # MyBatis-Plus Mapper
+│       ├── dto/                # 请求/响应 DTO
+│       ├── config/             # 安全、CORS 配置
+│       └── security/           # JWT 过滤器
+├── agentbox-frontend/          # Next.js 前端
+│   └── src/
+│       ├── app/                # 页面 (page.tsx, login, register)
+│       ├── components/         # UI 组件
+│       └── lib/                # 工具 (api, auth, theme)
+├── migration_v*.sql            # 数据库迁移脚本 (v2~v7)
+├── docker-compose.yml          # PostgreSQL 容器编排
+└── README.md
 ```
 
+---
 
-## 🚀 快速开始
+## 快速开始
 
 ### 环境要求
 
-| 软件 | 版本 | 说明 |
-|------|------|------|
-| JDK | 17+ | Java 运行环境 |
-| Node.js | 20+ | 前端运行环境 |
-| Docker | 最新 | 容器化部署 |
-| Maven | 3.8+ | 构建工具 |
+| 软件 | 版本 |
+|------|------|
+| JDK | 17+ |
+| Node.js | 20+ |
+| PostgreSQL | 14+ |
+| Maven | 3.8+ |
 
 ### 1. 克隆项目
 
@@ -82,200 +121,156 @@ git clone https://github.com/jacklove0903/agentbox.git
 cd agentbox
 ```
 
-### 2. 启动依赖服务
+### 2. 启动数据库
 
-```
-# 启动 PostgreSQL + Redis
+```bash
+# 方式一：Docker
 docker compose up -d
 
-# 查看服务状态
-docker compose ps
+# 方式二：已有 PostgreSQL，创建数据库
+createdb agentbox
 ```
 
-### 3. 启动后端
+### 3. 初始化数据库
 
+按顺序执行 SQL 迁移脚本：
+
+```bash
+psql -d agentbox -f schema.sql
+psql -d agentbox -f migration_v2_models.sql
+psql -d agentbox -f migration_v3_users.sql
+psql -d agentbox -f migration_v4_siliconflow.sql
+psql -d agentbox -f migration_v5_image_generations.sql
+psql -d agentbox -f migration_v6_conversations.sql
+psql -d agentbox -f migration_v7_model_votes.sql
 ```
+
+### 4. 配置后端
+
+编辑 `agentbox-platform/src/main/resources/application.properties`：
+
+```properties
+# 数据库连接
+spring.datasource.url=jdbc:postgresql://localhost:5432/agentbox
+spring.datasource.username=postgres
+spring.datasource.password=postgres123
+
+# 硅基流动 API Key（必填）
+spring.ai.openai.api-key=${SILICONFLOW_API_KEY}
+spring.ai.openai.base-url=https://api.siliconflow.cn
+
+# JWT 密钥（生产环境务必修改）
+jwt.secret=${JWT_SECRET:change-me-to-a-long-random-secret-of-at-least-32-bytes}
+```
+
+### 5. 启动后端
+
+```bash
 cd agentbox-platform
-
-# 修改数据库配置（src/main/resources/application.yml）
-# 启动后端
 mvn spring-boot:run
-
 # 后端地址：http://localhost:8080
 ```
 
-### 4. 启动前端
+### 6. 启动前端
 
-```
+```bash
 cd agentbox-frontend
-
-# 安装依赖
 npm install
-
-# 启动开发服务器
 npm run dev
-
-# 前端地址：http://localhost:5173
+# 前端地址：http://localhost:3000
 ```
 
-### 5. 访问系统
+### 7. 访问系统
 
-打开浏览器访问：[http://localhost:5173](http://localhost:5173/)
+打开 [http://localhost:3000](http://localhost:3000)，注册账号即可使用。
 
 ---
 
-## 📊 支持的 AI 模型
+## API 接口
 
-| 厂商     | 模型                                    | 状态 |
-| ---------- | ----------------------------------------- | ------ |
-| 阿里云   | Qwen-Max, Qwen-Turbo, Qwen-7B, Qwen-14B | ✅   |
-| 百度     | Ernie-3.5, Ernie-4.0, Ernie-Speed       | ✅   |
-| 腾讯     | Hunyuan-Turbo, Hunyuan-Large            | ✅   |
-| 华为     | Pangu-3.0, Pangu-3.5                    | ✅   |
-| 字节     | Doubao-Pro, Doubao-Lite, Doubao-Vision  | ✅   |
-| 智谱 AI  | ChatGLM-3, ChatGLM-4, GLM-4-Plus        | ✅   |
-| 科大讯飞 | Spark-3.0, Spark-4.0, Spark-Max         | ✅   |
-| 商汤     | SenseNova-5.0, SenseNova-5.5            | ✅   |
+### 认证
 
----
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/auth/register` | POST | 用户注册 |
+| `/api/auth/login` | POST | 用户登录 |
 
-## 🔧 配置说明
+### 对话
 
-### 后端配置 (application.yml)
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/chat/stream` | POST | 流式对话 (SSE) |
+| `/api/chat/history` | POST | 获取对话历史 |
 
-```
-server:
-  port: 8080
+### 会话管理
 
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/agentbox
-    username: postgres
-    password: postgres123
-    driver-class-name: org.postgresql.Driver
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/conversations` | GET | 会话列表 |
+| `/api/conversations` | POST | 新建会话 |
+| `/api/conversations/{id}/title` | PUT | 重命名 |
+| `/api/conversations/{id}` | DELETE | 删除会话 |
 
-  data:
-    redis:
-      host: localhost
-      port: 6379
+### 模型 & 投票
 
-# Spring AI 配置
-spring:
-  ai:
-    dashscope:
-      api-key: ${DASHSCOPE_API_KEY}  # 从环境变量读取
-```
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/models/getmodels` | GET | 模型列表 |
+| `/api/models/getmodelmap` | GET | 按厂商分组 |
+| `/api/votes` | POST | 投票最佳回答 |
+| `/api/votes/stats` | GET | 个人投票统计 |
 
-### 环境变量
+### 工具
 
-```
-# .env 文件（不提交到 Git）
-DASHSCOPE_API_KEY=your-api-key
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=agentbox
-DB_USERNAME=postgres
-DB_PASSWORD=postgres123
-```
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/tools/translate` | POST | AI 翻译 |
+| `/api/tools/summarize` | POST | 网页摘要 |
+| `/api/tools/image/generate` | POST | 图片生成 |
 
 ---
 
-## 📸 项目截图
+## 后续计划
 
-> 待添加...
-
----
-
-## 🔌 API 接口
-
-| 接口                   | 方法 | 说明         |
-| ------------------------ | ------ | -------------- |
-| `/api/models`      | GET  | 获取所有模型 |
-| `/api/models/{id}` | GET  | 获取单个模型 |
-| `/api/chat`        | POST | 发送对话消息 |
-| `/api/chat/stream` | POST | 流式对话     |
-| `/api/documents`   | POST | 上传文档     |
-| `/api/knowledge`   | GET  | 知识库检索   |
+| 功能 | 优先级 | 状态 |
+|------|--------|------|
+| AI Enhance 提示词优化 | 中 | 计划中 |
+| 图片 / 文件上传对话 | 中 | 计划中 |
+| 会话标题智能生成 (LLM) | 低 | 计划中 |
+| 移动端响应式适配 | 中 | 计划中 |
+| Prompt 模板库 | 低 | 计划中 |
+| 流式 Token 计数 | 低 | 计划中 |
 
 ---
 
-## 🧪 开发指南
-
-### 添加新模型
-
-1. 在 `models` 表添加记录
-2. 配置 API Key
-3. 前端添加模型图标
-
-### 自定义功能
-
-```
-# 后端开发
-cd agentbox-platform
-mvn spring-boot:run
-
-# 前端开发
-cd agentbox-frontend
-npm run dev
-```
-
----
-
-## 📋 待办事项
-
-| 功能       | 优先级 | 状态 |
-| ------------ | -------- | ------ |
-| 多模型对比 | 🔴 高  | ⬜   |
-| 流式响应   | 🔴 高  | ⬜   |
-| 知识库 RAG | 🔴 高  | ⬜   |
-| 会话历史   | 🟡 中  | ⬜   |
-| 文档上传   | 🟡 中  | ⬜   |
-| 用户系统   | 🟢 低  | ⬜   |
-
----
-
-## 🤝 贡献指南
+## 贡献指南
 
 欢迎提交 Issue 和 Pull Request！
 
 1. Fork 本项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
+2. 创建功能分支 (`git checkout -b feature/xxx`)
+3. 提交更改 (`git commit -m 'feat: xxx'`)
+4. 推送到分支 (`git push origin feature/xxx`)
 5. 开启 Pull Request
 
 ---
 
-## 📝 开源协议
+## 开源协议
 
-Apache License 2.0 - 详见 <span data-type="inline-memo" data-inline-memo-content="Blocked URL: LICENSE">LICENSE [blocked]</span> 文件
-
----
-
-## 👨‍💻 作者
-
-|        |                                               |
-| -------- | ----------------------------------------------- |
-| GitHub | [@jacklove0903](https://github.com/jacklove0903) |
-| 邮箱   | (待添加)                                      |
+[Apache License 2.0](LICENSE)
 
 ---
 
-## 🙏 致谢
+## 致谢
 
-* [Spring AI](https://spring.io/projects/spring-ai)
-* [MyBatis-Plus](https://baomidou.com/)
-* [React](https://reactjs.org/)
-* [Ant Design](https://ant.design/)
-* [PGVector](https://github.com/pgvector/pgvector)
+- [Spring AI](https://spring.io/projects/spring-ai)
+- [MyBatis-Plus](https://baomidou.com/)
+- [Next.js](https://nextjs.org/)
+- [shadcn/ui](https://ui.shadcn.com/)
+- [SiliconFlow](https://siliconflow.cn/)
+- [Tailwind CSS](https://tailwindcss.com/)
 
 ---
 
 如果这个项目对你有帮助，请给一个 ⭐ Star！
-
-[返回顶部](http://127.0.0.1:49907/c/019d859f-3e91-70e9-a249-bf900f322727#agentbox-)
-
-```
-
-```
 
