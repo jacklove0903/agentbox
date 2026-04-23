@@ -251,6 +251,7 @@ export default function Home() {
           const dataLine = part.split("\n").find((l) => l.startsWith("data:"));
           if (!dataLine) continue;
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let parsed: any;
           try {
             parsed = JSON.parse(dataLine.slice(5));
