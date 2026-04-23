@@ -22,6 +22,7 @@ import {
   Edit3,
   Check,
   X,
+  Trophy,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
@@ -47,6 +48,7 @@ const tools = [
   { id: "image-gen", name: "Image Generator", icon: Image },
   { id: "translator", name: "AI Translator", icon: Languages },
   { id: "summarizer", name: "Web Summarizer", icon: Globe },
+  { id: "leaderboard", name: "Model Leaderboard", icon: Trophy },
 ];
 
 export interface ConversationInfo {

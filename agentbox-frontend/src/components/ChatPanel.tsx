@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, RotateCcw, Trash2, Download } from "lucide-react";
+import { ChevronDown, RotateCcw, Trash2, Download, ThumbsUp } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CodeBlock } from "@/components/CodeBlock";
@@ -34,8 +34,10 @@ interface ChatPanelProps {
   onModelChange?: (modelId: string) => void;
   onClear?: () => void;
   onRegenerate?: () => void;
+  onVote?: () => void;
   hideModelSwitcher?: boolean;
   isStreaming?: boolean;
+  votedModelId?: string | null;
 }
 
 export function ChatPanel({
@@ -48,8 +50,10 @@ export function ChatPanel({
   onModelChange,
   onClear,
   onRegenerate,
+  onVote,
   hideModelSwitcher = false,
   isStreaming = false,
+  votedModelId = null,
 }: ChatPanelProps) {
   const [grouped, setGrouped] = useState<Record<string, ModelInfo[]>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -219,6 +223,27 @@ export function ChatPanel({
                 </div>
               </div>
             ))}
+            {/* Vote button — show after last assistant message when not streaming */}
+            {!isStreaming && messages.length > 0 && messages[messages.length - 1].role === "assistant" && !messages[messages.length - 1].isError && (
+              <div className="flex justify-start pl-8 mt-1">
+                <button
+                  type="button"
+                  onClick={() => onVote?.()}
+                  disabled={!!votedModelId}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                    votedModelId === modelId
+                      ? "bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-800"
+                      : votedModelId
+                        ? "bg-gray-50 dark:bg-neutral-800 text-gray-300 dark:text-gray-600 border border-gray-100 dark:border-neutral-700 cursor-not-allowed"
+                        : "bg-gray-50 dark:bg-neutral-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-neutral-700 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 hover:border-green-200 dark:hover:border-green-800"
+                  }`}
+                  title={votedModelId === modelId ? "已投票" : votedModelId ? "已投给其他模型" : "选择最佳回答"}
+                >
+                  <ThumbsUp className="w-3 h-3" />
+                  {votedModelId === modelId ? "最佳" : "投票"}
+                </button>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
         )}

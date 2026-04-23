@@ -9,6 +9,7 @@ import { Sidebar, type ConversationInfo } from "@/components/SideBar";
 import { TranslatorPanel } from "@/components/TranslatorPanel";
 import { WebSummarizerPanel } from "@/components/WebSummarizerPanel";
 import { ImageGeneratorPanel } from "@/components/ImageGeneratorPanel";
+import { ModelLeaderboard } from "@/components/ModelLeaderboard";
 import { useAuth } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 
@@ -48,6 +49,7 @@ export default function Home() {
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [votedModelId, setVotedModelId] = useState<string | null>(null);
   // View mode: 'all-in-one' = multi-panel grid; 'single' = one standalone chat for singleModelId.
   const [viewMode, setViewMode] = useState<"all-in-one" | "single">("all-in-one");
   const [singleModelId, setSingleModelId] = useState<string | null>(null);
@@ -368,6 +370,32 @@ export default function Home() {
   // NOTE: this only clears local state; server-side history is NOT deleted.
   // We drop the loaded flag so leaving and returning to this model re-pulls
   // the persisted history.
+  // Vote for the best model response
+  const handleVote = async (modelId: string) => {
+    if (votedModelId) return;
+    setVotedModelId(modelId);
+
+    // Find last user message for context
+    const msgs = messages[modelId] || [];
+    let lastUserMsg = "";
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === "user") { lastUserMsg = msgs[i].content; break; }
+    }
+
+    try {
+      await apiFetch("/api/votes", {
+        method: "POST",
+        body: JSON.stringify({
+          modelId,
+          conversationId: activeConversationId || undefined,
+          userMessage: lastUserMsg || undefined,
+        }),
+      });
+    } catch (e) {
+      console.error("Failed to submit vote:", e);
+    }
+  };
+
   const handleClearChat = (mid: string) => {
     setMessages((prev) => {
       const next = { ...prev };
@@ -418,6 +446,9 @@ export default function Home() {
       modelIds && modelIds.length > 0 ? modelIds : fallbackIds;
 
     if (effectiveModelIds.length === 0) return;
+
+    // Reset vote for new turn
+    setVotedModelId(null);
 
     // 1. Add user message to ALL target panels immediately.
     setMessages((prev) => {
@@ -581,6 +612,10 @@ export default function Home() {
           <div className="flex-1 min-h-0 overflow-y-auto">
             <ImageGeneratorPanel />
           </div>
+        ) : activeTool === "leaderboard" ? (
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <ModelLeaderboard />
+          </div>
         ) : activeTool ? (
           <div className="flex-1 flex items-center justify-center text-neutral-500">
             <p className="text-lg font-medium">即将推出...</p>
@@ -603,6 +638,8 @@ export default function Home() {
                 onActivate={() => setActiveModelId(singleModelView.id)}
                 onClear={() => handleClearChat(singleModelView.id)}
                 onRegenerate={() => handleRegenerate(singleModelView.id)}
+                onVote={() => handleVote(singleModelView.id)}
+                votedModelId={votedModelId}
               />
             ) : (
               <div className="h-full flex items-center justify-center text-neutral-500">
@@ -635,6 +672,8 @@ export default function Home() {
                     }
                     onClear={() => handleClearChat(model.id)}
                     onRegenerate={() => handleRegenerate(model.id)}
+                    onVote={() => handleVote(model.id)}
+                    votedModelId={votedModelId}
                   />
                 </div>
               ))
