@@ -14,6 +14,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import jakarta.servlet.DispatcherType;
 import java.util.List;
 
 @Configuration
@@ -38,10 +39,16 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
+                        // Skip re-authorization on async/forward/error dispatches. Spring Security
+                        // re-runs the filter chain when Tomcat async-dispatches SSE completions; the
+                        // SecurityContext ThreadLocal is gone at that point, so requests get denied.
+                        // Safe to permit because REQUEST-phase authorization already ran.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
                         // Public endpoints
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
                         // Model list is public (used by login-less landing) — change to authenticated if needed.
                         .requestMatchers("/api/models/**").permitAll()
+                        .requestMatchers("/api/files/**").permitAll()
                         // Allow error dispatch (prevents Security blocking async SSE error pages).
                         .requestMatchers("/error").permitAll()
                         // Everything else requires a valid JWT.

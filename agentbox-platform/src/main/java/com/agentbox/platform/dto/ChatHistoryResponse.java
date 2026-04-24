@@ -13,6 +13,7 @@ public class ChatHistoryResponse {
         private String modelId;
         private String role;
         private String content;
+        private List<String> imageUrls;
         private LocalDateTime timestamp;
     }
 }

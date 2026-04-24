@@ -20,6 +20,9 @@ const LANGUAGES = [
   { code: "ar", label: "العربية" },
 ];
 
+// Fallback model id if the /api/models/getmodels lookup fails for any reason.
+const FALLBACK_MODEL_ID = "qwen2.5-7b";
+
 export function TranslatorPanel() {
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("en");
@@ -27,8 +30,30 @@ export function TranslatorPanel() {
   const [targetText, setTargetText] = useState("");
   const [isTranslating, setIsTranslating] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Model used for translation. Resolved on mount from /api/models/getmodels
+  // (which returns enabled models sorted by sort_order ASC, so [0] === sort_order=1).
+  const [translatorModelId, setTranslatorModelId] = useState<string>(FALLBACK_MODEL_ID);
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch("/api/models/getmodels");
+        if (!res.ok) return;
+        const models = (await res.json()) as Array<{ id: string }>;
+        if (!cancelled && models.length > 0 && models[0]?.id) {
+          setTranslatorModelId(models[0].id);
+        }
+      } catch {
+        // keep fallback
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSwapLanguages = () => {
     if (sourceLang === "auto") return;
@@ -65,8 +90,12 @@ export function TranslatorPanel() {
         method: "POST",
         body: JSON.stringify({
           message: prompt,
-          modelIds: ["qwen2.5-7b"],
-          options: { webSearch: false, imageGen: false },
+          modelIds: [translatorModelId],
+          // Translation should be direct — disable web search and thinking so we
+          // don't capture reasoning traces as the translation output.
+          options: { webSearch: false, imageGen: false, enableThinking: false },
+          // Don't persist translator chats to the sidebar conversation list.
+          ephemeral: true,
         }),
         signal: controller.signal,
       });
@@ -97,20 +126,26 @@ export function TranslatorPanel() {
           const dataLine = part.split("\n").find((l) => l.startsWith("data:"));
           if (!dataLine) continue;
 
-          let chunk: { modelId: string; content: string; done: boolean; error?: string };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let parsed: any;
           try {
-            chunk = JSON.parse(dataLine.slice(5));
+            parsed = JSON.parse(dataLine.slice(5));
           } catch {
             continue;
           }
 
-          if (chunk.error) {
-            setTargetText(`翻译出错: ${chunk.error}`);
+          // Skip non-content SSE frames (conversation meta, smart-title, reasoning, searching, …)
+          // to avoid accidentally appending "undefined" or thinking traces to the translation.
+          if (parsed.type && parsed.type !== "content") continue;
+          if (parsed.searching) continue;
+          if (parsed.error) {
+            setTargetText(`翻译出错: ${parsed.error}`);
             break;
           }
-          if (chunk.done) break;
+          if (parsed.done) break;
+          if (typeof parsed.content !== "string" || parsed.content.length === 0) continue;
 
-          accumulated += chunk.content;
+          accumulated += parsed.content;
           setTargetText(accumulated);
         }
       }
@@ -121,7 +156,7 @@ export function TranslatorPanel() {
       setIsTranslating(false);
       abortRef.current = null;
     }
-  }, []);
+  }, [translatorModelId]);
 
   // Auto-translate with debounce when sourceText, sourceLang or targetLang changes
   useEffect(() => {

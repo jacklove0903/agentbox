@@ -22,6 +22,9 @@ public class Message {
 
     private String content;
 
+    /** JSON array of image URLs attached to this message (user role only). Stored as TEXT. */
+    private String imageUrls;
+
     private LocalDateTime timestamp = LocalDateTime.now();
 
     public enum Role {

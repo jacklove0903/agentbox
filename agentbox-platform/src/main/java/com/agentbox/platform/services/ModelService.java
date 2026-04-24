@@ -48,6 +48,7 @@ public class ModelService {
         info.setName(model.getName());
         info.setIcon(model.getIcon());
         info.setProvider(model.getProvider());
+        info.setSupportsVision(Boolean.TRUE.equals(model.getSupportsVision()));
         return info;
     }
 }

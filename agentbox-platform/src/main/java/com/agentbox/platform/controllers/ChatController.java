@@ -37,6 +37,23 @@ public class ChatController {
         return chatService.chatStream(request);
     }
 
+    @PostMapping("/enhance")
+    public ResponseEntity<?> enhance(@RequestBody java.util.Map<String, String> body,
+                                      Authentication auth) {
+        requirePrincipal(auth);
+        String prompt = body.get("prompt");
+        if (prompt == null || prompt.isBlank()) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", "prompt is required"));
+        }
+        try {
+            String enhanced = chatService.enhancePrompt(prompt.trim());
+            return ResponseEntity.ok(java.util.Map.of("enhanced", enhanced));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(java.util.Map.of("error", e.getMessage() != null ? e.getMessage() : "enhance failed"));
+        }
+    }
+
     @PostMapping("/history")
     public ResponseEntity<ChatHistoryResponse> history(@RequestBody ChatHistoryRequest request,
                                                        Authentication auth) {

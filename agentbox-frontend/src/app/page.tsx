@@ -17,11 +17,16 @@ interface ModelInfo {
   id: string;
   name: string;
   icon: string;
+  supportsVision?: boolean;
 }
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  imageUrls?: string[];
+  reasoning?: string;
+  reasoningStart?: number;
+  reasoningEnd?: number;
   isError?: boolean;
 }
 
@@ -70,11 +75,12 @@ export default function Home() {
       });
       if (!res.ok) throw new Error(`history request failed: ${res.status}`);
       const data = (await res.json()) as {
-        messages?: Array<{ role: "user" | "assistant"; content: string }>;
+        messages?: Array<{ role: "user" | "assistant"; content: string; imageUrls?: string[] }>;
       };
       const loaded: Message[] = (data.messages || []).map((m) => ({
         role: m.role,
         content: m.content,
+        imageUrls: m.imageUrls,
       }));
 
       // Only populate if the user hasn't already started chatting in this tab.
@@ -206,8 +212,9 @@ export default function Home() {
   const streamOneModel = async (
     mid: string,
     message: string,
-    options: { webSearch: boolean; imageGen: boolean },
+    options: { webSearch: boolean; imageGen: boolean; enableThinking: boolean },
     conversationId?: string | null,
+    imageUrls?: string[],
   ) => {
     setStreamingModels((prev) => new Set(prev).add(mid));
     try {
@@ -218,6 +225,7 @@ export default function Home() {
           modelIds: [mid],
           options,
           conversationId: conversationId || undefined,
+          imageUrls: imageUrls && imageUrls.length > 0 ? imageUrls : undefined,
         }),
       });
 
@@ -266,6 +274,41 @@ export default function Home() {
             continue;
           }
 
+          // Handle smart title event
+          if (parsed.type === "title" && parsed.conversationId && parsed.title) {
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === parsed.conversationId ? { ...c, title: parsed.title } : c
+              )
+            );
+            continue;
+          }
+
+          // Handle reasoning (thinking) stream
+          if (parsed.type === "reasoning" && parsed.content) {
+            setMessages((prev) => {
+              const msgs = [...(prev[mid] || [])];
+              const lastIdx = msgs.length - 1;
+              const now = Date.now();
+              if (lastIdx >= 0 && msgs[lastIdx].role === "assistant" && !msgs[lastIdx].isError) {
+                msgs[lastIdx] = {
+                  ...msgs[lastIdx],
+                  reasoning: (msgs[lastIdx].reasoning || "") + parsed.content,
+                  reasoningStart: msgs[lastIdx].reasoningStart || now,
+                };
+              } else {
+                msgs.push({
+                  role: "assistant" as const,
+                  content: "",
+                  reasoning: parsed.content,
+                  reasoningStart: now,
+                });
+              }
+              return { ...prev, [mid]: msgs };
+            });
+            continue;
+          }
+
           const chunk = parsed as { modelId: string; content: string; done: boolean; error?: string; searching?: boolean };
 
           if (chunk.error) {
@@ -303,25 +346,23 @@ export default function Home() {
 
           if (!streamStarted) {
             streamStarted = true;
-            if (searchingPhase) {
-              // Replace the searching placeholder with real content
-              setMessages((prev) => {
-                const msgs = [...(prev[mid] || [])];
-                const lastIdx = msgs.length - 1;
-                if (lastIdx >= 0) {
-                  msgs[lastIdx] = { role: "assistant" as const, content: accumulated };
-                }
-                return { ...prev, [mid]: msgs };
-              });
-            } else {
-              setMessages((prev) => ({
-                ...prev,
-                [mid]: [
-                  ...(prev[mid] || []),
-                  { role: "assistant" as const, content: accumulated },
-                ],
-              }));
-            }
+            const now = Date.now();
+            setMessages((prev) => {
+              const msgs = [...(prev[mid] || [])];
+              const lastIdx = msgs.length - 1;
+              const last = lastIdx >= 0 ? msgs[lastIdx] : null;
+              // If last message is a placeholder (searching or reasoning-only), reuse it
+              if (last && last.role === "assistant" && !last.isError && (searchingPhase || last.reasoning)) {
+                msgs[lastIdx] = {
+                  ...last,
+                  content: accumulated,
+                  reasoningEnd: last.reasoning ? now : last.reasoningEnd,
+                };
+              } else {
+                msgs.push({ role: "assistant" as const, content: accumulated });
+              }
+              return { ...prev, [mid]: msgs };
+            });
           } else {
             setMessages((prev) => {
               const msgs = [...(prev[mid] || [])];
@@ -428,15 +469,16 @@ export default function Home() {
       [mid]: (prev[mid] || []).slice(0, lastUserIdx + 1),
     }));
 
-    await streamOneModel(mid, lastUserMessage, { webSearch: false, imageGen: false }, activeConversationId);
+    await streamOneModel(mid, lastUserMessage, { webSearch: false, imageGen: false, enableThinking: false }, activeConversationId);
   };
 
   const handleSendMessage = async (params: {
     message: string;
     modelIds: string[];
-    options: { webSearch: boolean; imageGen: boolean };
+    options: { webSearch: boolean; imageGen: boolean; enableThinking: boolean };
+    imageUrls?: string[];
   }) => {
-    const { message, modelIds, options } = params;
+    const { message, modelIds, options, imageUrls } = params;
 
     // Pick targets based on current view mode.
     const fallbackIds =
@@ -457,15 +499,37 @@ export default function Home() {
       for (const mid of effectiveModelIds) {
         next[mid] = [
           ...(next[mid] || []),
-          { role: "user" as const, content: message },
+          { role: "user" as const, content: message, imageUrls },
         ];
       }
       return next;
     });
 
-    // 2. Fire N independent HTTP requests in parallel (non-blocking so the
+    // 2. Resolve the conversationId BEFORE firing parallel requests. Otherwise each
+    //    parallel /api/chat/stream call sees no conversationId and the backend creates
+    //    a separate conversation for each model — leaving N-1 orphans in the sidebar.
+    let convId = activeConversationId;
+    if (!convId) {
+      try {
+        const truncated = message.length > 30 ? message.slice(0, 30) + "..." : message;
+        const createRes = await apiFetch("/api/conversations", {
+          method: "POST",
+          body: JSON.stringify({ title: truncated }),
+        });
+        if (createRes.ok) {
+          const conv = await createRes.json();
+          convId = conv.id;
+          setActiveConversationId(conv.id);
+          fetchConversations();
+        }
+      } catch (e) {
+        console.error("Failed to pre-create conversation:", e);
+      }
+    }
+
+    // 3. Fire N independent HTTP requests in parallel (non-blocking so the
     //    input is immediately re-enabled for the next turn).
-    effectiveModelIds.forEach((mid) => streamOneModel(mid, message, options, activeConversationId));
+    effectiveModelIds.forEach((mid) => streamOneModel(mid, message, options, convId, imageUrls));
   };
 
   useEffect(() => {
@@ -641,6 +705,7 @@ export default function Home() {
                 onRegenerate={() => handleRegenerate(singleModelView.id)}
                 onVote={() => handleVote(singleModelView.id)}
                 votedModelId={votedModelId}
+                supportsVision={!!singleModelView.supportsVision}
               />
             ) : (
               <div className="h-full flex items-center justify-center text-neutral-500">
@@ -675,6 +740,7 @@ export default function Home() {
                     onRegenerate={() => handleRegenerate(model.id)}
                     onVote={() => handleVote(model.id)}
                     votedModelId={votedModelId}
+                    supportsVision={!!model.supportsVision}
                   />
                 </div>
               ))

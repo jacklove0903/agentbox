@@ -19,4 +19,7 @@ public class Conversation {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    /** True once an AI-generated title has been applied (prevents duplicate generation). */
+    private Boolean smartTitleGenerated;
 }

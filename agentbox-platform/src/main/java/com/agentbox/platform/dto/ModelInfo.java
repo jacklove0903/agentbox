@@ -8,4 +8,5 @@ public class ModelInfo {
     private String name;
     private String icon;
     private String provider;
+    private Boolean supportsVision;
 }

@@ -27,3 +27,6 @@ agentbox-frontend/.env.production.local
 .vscode/
 *.swp
 *.swo
+
+# Local file uploads (now stored in DB)
+uploads/

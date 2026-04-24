@@ -20,9 +20,12 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.content.Media;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import org.springframework.util.MimeTypeUtils;
 import reactor.core.publisher.Flux;
 
 import java.time.LocalDateTime;
@@ -52,11 +55,16 @@ public class ChatService {
     @Autowired
     private WebSearchService webSearchService;
 
+    @Autowired
+    private com.agentbox.platform.repositories.UploadedFileRepository uploadedFileRepository;
+
     private final ExecutorService modelExecutor = Executors.newFixedThreadPool(
             Math.max(32, Runtime.getRuntime().availableProcessors() * 4));
 
     // In-memory cache for model name resolution (modelId -> apiModelName)
     private final ConcurrentHashMap<String, String> modelNameCache = new ConcurrentHashMap<>();
+    // In-memory cache for vision capability (modelId -> supports images)
+    private final ConcurrentHashMap<String, Boolean> modelVisionCache = new ConcurrentHashMap<>();
 
     @PreDestroy
     public void shutdown() {
@@ -209,16 +217,28 @@ public class ChatService {
 
         // Extract webSearch option
         boolean webSearch = false;
+        boolean enableThinking = true; // default ON so reasoning models (Qwen3) show thinking
         if (request.getOptions() != null) {
             Object ws = request.getOptions().get("webSearch");
             webSearch = Boolean.TRUE.equals(ws) || "true".equals(String.valueOf(ws));
+            Object et = request.getOptions().get("enableThinking");
+            if (et != null) {
+                enableThinking = Boolean.TRUE.equals(et) || "true".equals(String.valueOf(et));
+            }
         }
         boolean finalWebSearch = webSearch;
+        boolean finalEnableThinking = enableThinking;
+        boolean ephemeral = Boolean.TRUE.equals(request.getEphemeral());
 
-        // Resolve or auto-create conversation
-        String conversationId = request.getConversationId();
-        if (conversationId == null || conversationId.isBlank()) {
-            // Auto-create a new conversation, title = first 30 chars of message
+        // Ephemeral requests (translator, prompt-enhancer, …) run stateless: no conversation,
+        // no persisted messages, no smart title. They must always have a conversationId though
+        // because downstream code expects non-null; use a per-request throwaway UUID that is
+        // never inserted into the DB.
+        String conversationId;
+        if (ephemeral) {
+            conversationId = "ephemeral-" + UUID.randomUUID();
+        } else if (request.getConversationId() == null || request.getConversationId().isBlank()) {
+            // Auto-create a new conversation with temporary title
             Conversation conv = new Conversation();
             conv.setId(UUID.randomUUID().toString());
             conv.setUserId(userId);
@@ -231,6 +251,7 @@ public class ChatService {
             conversationRepository.insert(conv);
             conversationId = conv.getId();
         } else {
+            conversationId = request.getConversationId();
             // Touch updatedAt
             Conversation conv = conversationRepository.selectById(conversationId);
             if (conv != null) {
@@ -242,36 +263,70 @@ public class ChatService {
 
         // Send the conversationId back to the client as the first SSE event
         List<Flux<ServerSentEvent<String>>> modelFluxes = new ArrayList<>();
-        // Emit a meta event with the conversationId so the client can track it
-        Flux<ServerSentEvent<String>> metaFlux = Flux.just(
-                buildConversationIdEvent(finalConversationId));
-        modelFluxes.add(metaFlux);
+        if (!ephemeral) {
+            // Emit a meta event with the conversationId so the client can track it
+            Flux<ServerSentEvent<String>> metaFlux = Flux.just(
+                    buildConversationIdEvent(finalConversationId));
+            modelFluxes.add(metaFlux);
+        }
+
+        List<String> imageUrls = request.getImageUrls() != null ? request.getImageUrls() : List.of();
 
         validModelIds.stream()
                 .map(modelId -> streamSingleModel(userId, modelId, trimmedMessage,
-                        finalWebSearch, finalConversationId))
+                        finalWebSearch, finalConversationId, imageUrls, finalEnableThinking, ephemeral))
                 .forEach(modelFluxes::add);
+
+        // Smart title only for persisted conversations.
+        if (!ephemeral && claimSmartTitleSlot(finalConversationId)) {
+            String msgForTitle = trimmedMessage;
+            modelFluxes.add(generateSmartTitle(finalConversationId, msgForTitle));
+        }
 
         return Flux.merge(modelFluxes);
     }
 
+    /**
+     * Atomically flip {@code smart_title_generated} from false→true for the given conversation.
+     * Returns true if THIS call won the race and should generate the title.
+     */
+    private boolean claimSmartTitleSlot(String conversationId) {
+        Conversation update = new Conversation();
+        update.setSmartTitleGenerated(true);
+        int rows = conversationRepository.update(update,
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Conversation>()
+                        .eq(Conversation::getId, conversationId)
+                        .and(w -> w.isNull(Conversation::getSmartTitleGenerated)
+                                .or()
+                                .eq(Conversation::getSmartTitleGenerated, false)));
+        return rows > 0;
+    }
+
     private Flux<ServerSentEvent<String>> streamSingleModel(String userId, String modelId,
                                                                String userMessage, boolean webSearch,
-                                                               String conversationId) {
+                                                               String conversationId, List<String> imageUrls,
+                                                               boolean enableThinking, boolean ephemeral) {
         return Flux.<ServerSentEvent<String>>create(sink -> {
             modelExecutor.submit(() -> {
                 try {
-                    // 1. Fetch history scoped to conversation + model
-                    LambdaQueryWrapper<Message> historyQuery = new LambdaQueryWrapper<Message>()
-                            .eq(Message::getUserId, userId)
-                            .eq(Message::getModelId, modelId);
-                    if (conversationId != null && !conversationId.isBlank()) {
-                        historyQuery.eq(Message::getConversationId, conversationId);
+                    // 1. Fetch history scoped to conversation + model.
+                    //    Skip history entirely for ephemeral (tool) requests — they must not
+                    //    leak context from the user's real conversations.
+                    List<Message> history;
+                    if (ephemeral) {
+                        history = List.of();
+                    } else {
+                        LambdaQueryWrapper<Message> historyQuery = new LambdaQueryWrapper<Message>()
+                                .eq(Message::getUserId, userId)
+                                .eq(Message::getModelId, modelId);
+                        if (conversationId != null && !conversationId.isBlank()) {
+                            historyQuery.eq(Message::getConversationId, conversationId);
+                        }
+                        historyQuery.orderByDesc(Message::getTimestamp)
+                                .last("limit " + MAX_HISTORY_MESSAGES);
+                        history = messageRepository.selectList(historyQuery);
+                        Collections.reverse(history);
                     }
-                    historyQuery.orderByDesc(Message::getTimestamp)
-                            .last("limit " + MAX_HISTORY_MESSAGES);
-                    List<Message> history = messageRepository.selectList(historyQuery);
-                    Collections.reverse(history);
 
                     // 2. Build conversation
                     List<org.springframework.ai.chat.messages.Message> conversationMessages = new ArrayList<>();
@@ -282,7 +337,24 @@ public class ChatService {
                             conversationMessages.add(new AssistantMessage(msg.getContent()));
                         }
                     }
-                    conversationMessages.add(new UserMessage(userMessage));
+                    // Build user message — attach images as Media only if the model supports
+                    // vision (otherwise SiliconFlow returns 400 for text-only models).
+                    boolean canSeeImages = modelSupportsVision(modelId);
+                    List<Media> mediaList = canSeeImages ? loadImageMedia(imageUrls) : List.of();
+                    if (!mediaList.isEmpty()) {
+                        conversationMessages.add(UserMessage.builder()
+                                .text(userMessage)
+                                .media(mediaList)
+                                .build());
+                    } else if (!canSeeImages && imageUrls != null && !imageUrls.isEmpty()) {
+                        // Non-vision model with attached images: tell it so it responds
+                        // helpfully instead of answering a question about an image it can't see.
+                        String note = "[系统提示：用户附带了 " + imageUrls.size()
+                                + " 张图片，但当前模型不支持图像识别。请告知用户并尝试仅基于文字部分回答。]\n\n";
+                        conversationMessages.add(new UserMessage(note + userMessage));
+                    } else {
+                        conversationMessages.add(new UserMessage(userMessage));
+                    }
 
                     // 2.5 Web Search: search and inject results as system context
                     if (webSearch) {
@@ -297,29 +369,59 @@ public class ChatService {
                         }
                     }
 
-                    // 3. Save user message
-                    Message userMsg = new Message();
-                    userMsg.setUserId(userId);
-                    userMsg.setConversationId(conversationId);
-                    userMsg.setModelId(modelId);
-                    userMsg.setRole(Message.Role.USER);
-                    userMsg.setContent(userMessage);
-                    userMsg.setTimestamp(LocalDateTime.now());
-                    messageRepository.insert(userMsg);
+                    // 3. Save user message (include attached image URLs so they
+                    //    re-appear when the conversation is reloaded later).
+                    //    Ephemeral requests do not persist.
+                    if (!ephemeral) {
+                        Message userMsg = new Message();
+                        userMsg.setUserId(userId);
+                        userMsg.setConversationId(conversationId);
+                        userMsg.setModelId(modelId);
+                        userMsg.setRole(Message.Role.USER);
+                        userMsg.setContent(userMessage);
+                        if (imageUrls != null && !imageUrls.isEmpty()) {
+                            try {
+                                userMsg.setImageUrls(objectMapper.writeValueAsString(imageUrls));
+                            } catch (Exception ignore) { /* fall through, content still saved */ }
+                        }
+                        userMsg.setTimestamp(LocalDateTime.now());
+                        messageRepository.insert(userMsg);
+                    }
 
                     // 4. Stream from model — each model runs on its own thread for true parallelism
                     StringBuilder fullContent = new StringBuilder();
                     String apiModelName = resolveModelName(modelId);
-                    OpenAiChatOptions streamOptions = OpenAiChatOptions.builder()
-                            .model(apiModelName).build();
+                    OpenAiChatOptions.Builder optsBuilder = OpenAiChatOptions.builder().model(apiModelName);
+                    // enable_thinking is a Qwen3-specific SiliconFlow extension. Sending it to
+                    // other providers (e.g. DeepSeek R1, GLM, Kimi) causes 400 Bad Request.
+                    if (apiModelName != null && apiModelName.startsWith("Qwen/Qwen3")) {
+                        Map<String, Object> extra = new LinkedHashMap<>();
+                        extra.put("enable_thinking", enableThinking);
+                        optsBuilder.extraBody(extra);
+                    }
+                    OpenAiChatOptions streamOptions = optsBuilder.build();
 
                     chatModel.stream(new Prompt(conversationMessages, streamOptions))
                             .doOnNext(chatResp -> {
-                                String delta = (chatResp.getResult() != null
-                                        && chatResp.getResult().getOutput() != null)
-                                        ? chatResp.getResult().getOutput().getText()
-                                        : "";
-                                if (delta != null) {
+                                if (chatResp.getResult() == null || chatResp.getResult().getOutput() == null) {
+                                    return;
+                                }
+                                var output = chatResp.getResult().getOutput();
+                                // Emit reasoning (thinking) delta if present — but only when the
+                                // caller actually wants it. Some models ignore enable_thinking=false
+                                // and still stream reasoning, which would leak into plain-text clients
+                                // (e.g. the translator panel).
+                                if (enableThinking) {
+                                    Object reasoning = output.getMetadata() != null
+                                            ? output.getMetadata().get("reasoningContent")
+                                            : null;
+                                    if (reasoning instanceof String rs && !rs.isEmpty()) {
+                                        sink.next(buildReasoningEvent(modelId, rs));
+                                    }
+                                }
+                                // Emit content delta
+                                String delta = output.getText();
+                                if (delta != null && !delta.isEmpty()) {
                                     fullContent.append(delta);
                                     sink.next(buildSseEvent(modelId, delta, false, null));
                                 }
@@ -331,15 +433,17 @@ public class ChatService {
                             })
                             .blockLast(); // Block THIS thread (not main) until stream completes
 
-                    // 5. Persist AI response
-                    Message aiMsg = new Message();
-                    aiMsg.setUserId(userId);
-                    aiMsg.setConversationId(conversationId);
-                    aiMsg.setModelId(modelId);
-                    aiMsg.setRole(Message.Role.AI);
-                    aiMsg.setContent(fullContent.toString());
-                    aiMsg.setTimestamp(LocalDateTime.now());
-                    messageRepository.insert(aiMsg);
+                    // 5. Persist AI response (skipped for ephemeral tool requests)
+                    if (!ephemeral) {
+                        Message aiMsg = new Message();
+                        aiMsg.setUserId(userId);
+                        aiMsg.setConversationId(conversationId);
+                        aiMsg.setModelId(modelId);
+                        aiMsg.setRole(Message.Role.AI);
+                        aiMsg.setContent(fullContent.toString());
+                        aiMsg.setTimestamp(LocalDateTime.now());
+                        messageRepository.insert(aiMsg);
+                    }
 
                     sink.next(buildSseEvent(modelId, "", true, null));
                     sink.complete();
@@ -370,6 +474,52 @@ public class ChatService {
         } catch (Exception e) {
             return ServerSentEvent.<String>builder()
                     .data("{\"modelId\":\"" + modelId + "\",\"error\":\"serialization error\",\"done\":true}")
+                    .build();
+        }
+    }
+
+    /**
+     * Resolve frontend-facing image URLs (e.g. "/api/files/abc.jpg") into Spring AI Media objects
+     * by loading bytes from the uploaded_files table. Required so vision models receive pixel
+     * data directly (SiliconFlow's servers can't reach our internal /api/files/ URL).
+     */
+    private List<Media> loadImageMedia(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) return List.of();
+        List<Media> mediaList = new ArrayList<>();
+        final String prefix = "/api/files/";
+        for (String url : imageUrls) {
+            if (url == null || url.isBlank()) continue;
+            int idx = url.indexOf(prefix);
+            if (idx < 0) continue;
+            String id = url.substring(idx + prefix.length());
+            try {
+                var record = uploadedFileRepository.selectById(id);
+                if (record == null || record.getData() == null) continue;
+                String mime = record.getContentType();
+                if (mime == null || mime.isBlank()) mime = "image/jpeg";
+                mediaList.add(Media.builder()
+                        .mimeType(MimeTypeUtils.parseMimeType(mime))
+                        .data(new ByteArrayResource(record.getData()))
+                        .build());
+            } catch (Exception e) {
+                System.err.println("[loadImageMedia] failed for id=" + id + ": " + e.getMessage());
+            }
+        }
+        return mediaList;
+    }
+
+    private ServerSentEvent<String> buildReasoningEvent(String modelId, String content) {
+        try {
+            Map<String, Object> chunk = new LinkedHashMap<>();
+            chunk.put("type", "reasoning");
+            chunk.put("modelId", modelId);
+            chunk.put("content", content);
+            return ServerSentEvent.<String>builder()
+                    .data(objectMapper.writeValueAsString(chunk))
+                    .build();
+        } catch (Exception e) {
+            return ServerSentEvent.<String>builder()
+                    .data("{\"type\":\"reasoning\",\"modelId\":\"" + modelId + "\",\"content\":\"\"}")
                     .build();
         }
     }
@@ -408,6 +558,86 @@ public class ChatService {
     /** Clear model name cache (call after model config changes). */
     public void clearModelNameCache() {
         modelNameCache.clear();
+        modelVisionCache.clear();
+    }
+
+    /** Whether the given modelId is marked as supporting image input. */
+    private boolean modelSupportsVision(String modelId) {
+        Boolean cached = modelVisionCache.get(modelId);
+        if (cached != null) return cached;
+        Model model = modelRepository.selectById(modelId);
+        boolean v = model != null && Boolean.TRUE.equals(model.getSupportsVision());
+        modelVisionCache.put(modelId, v);
+        return v;
+    }
+
+    // ======================== Smart Title Generation ========================
+
+    private static final String TITLE_MODEL = "Qwen/Qwen3-8B";
+    private static final String TITLE_PROMPT =
+            "根据以下用户消息，生成一个简洁的中文对话标题（不超过15个字，不要引号，不要标点，直接输出标题）：\n\n";
+
+    private Flux<ServerSentEvent<String>> generateSmartTitle(String conversationId, String userMessage) {
+        return Flux.<ServerSentEvent<String>>create(sink -> {
+            modelExecutor.submit(() -> {
+                try {
+                    OpenAiChatOptions opts = OpenAiChatOptions.builder().model(TITLE_MODEL).build();
+                    List<org.springframework.ai.chat.messages.Message> msgs = List.of(
+                            new SystemMessage("你是一个标题生成助手。只输出标题，不要任何其他内容。/no_think"),
+                            new UserMessage(TITLE_PROMPT + userMessage));
+                    ChatResponse resp = chatModel.call(new Prompt(msgs, opts));
+                    String title = resp.getResult().getOutput().getText();
+                    if (title != null) {
+                        title = title.replaceAll("[\"'\\u201c\\u201d\\u2018\\u2019\\n]", "").trim();
+                        if (title.length() > 30) title = title.substring(0, 30);
+                        if (!title.isEmpty()) {
+                            Conversation conv = conversationRepository.selectById(conversationId);
+                            if (conv != null) {
+                                conv.setTitle(title);
+                                conversationRepository.updateById(conv);
+                            }
+                            sink.next(buildTitleEvent(conversationId, title));
+                        }
+                    }
+                } catch (Exception e) {
+                    // Title generation is best-effort; silently ignore failures
+                }
+                sink.complete();
+            });
+        });
+    }
+
+    private ServerSentEvent<String> buildTitleEvent(String conversationId, String title) {
+        try {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("type", "title");
+            data.put("conversationId", conversationId);
+            data.put("title", title);
+            return ServerSentEvent.<String>builder()
+                    .data(objectMapper.writeValueAsString(data))
+                    .build();
+        } catch (Exception e) {
+            return ServerSentEvent.<String>builder()
+                    .data("{\"type\":\"title\",\"conversationId\":\"" + conversationId + "\",\"title\":\"新对话\"}")
+                    .build();
+        }
+    }
+
+    // ======================== AI Enhance ========================
+
+    private static final String ENHANCE_MODEL = "Qwen/Qwen3-8B";
+    private static final String ENHANCE_SYSTEM_PROMPT =
+            "你是一个提示词优化专家。用户会给你一段提示词，请优化它使其更清晰、更具体、更容易让AI理解。" +
+            "直接输出优化后的提示词，不要解释。保持原文语言（中文输入就输出中文，英文输入就输出英文）。/no_think";
+
+    public String enhancePrompt(String prompt) {
+        OpenAiChatOptions opts = OpenAiChatOptions.builder().model(ENHANCE_MODEL).build();
+        List<org.springframework.ai.chat.messages.Message> msgs = List.of(
+                new SystemMessage(ENHANCE_SYSTEM_PROMPT),
+                new UserMessage(prompt));
+        ChatResponse resp = chatModel.call(new Prompt(msgs, opts));
+        String enhanced = resp.getResult().getOutput().getText();
+        return enhanced != null ? enhanced.trim() : prompt;
     }
 
     public ChatHistoryResponse history(ChatHistoryRequest request) {
@@ -445,6 +675,13 @@ public class ChatService {
                             mh.setRole(m.getRole() == Message.Role.USER ? "user" : "assistant");
                             mh.setContent(m.getContent());
                             mh.setTimestamp(m.getTimestamp());
+                            if (m.getImageUrls() != null && !m.getImageUrls().isBlank()) {
+                                try {
+                                    mh.setImageUrls(objectMapper.readValue(
+                                            m.getImageUrls(),
+                                            new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}));
+                                } catch (Exception ignore) { /* skip malformed */ }
+                            }
                             return mh;
                         })
                         .toList()

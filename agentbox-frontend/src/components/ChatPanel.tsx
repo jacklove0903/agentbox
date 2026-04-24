@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, RotateCcw, Trash2, Download, ThumbsUp } from "lucide-react";
+import { ChevronDown, ChevronUp, RotateCcw, Trash2, Download, ThumbsUp, Brain, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CodeBlock } from "@/components/CodeBlock";
@@ -16,6 +16,10 @@ import { API_BASE } from "@/lib/auth";
 interface Message {
   role: "user" | "assistant";
   content: string;
+  imageUrls?: string[];
+  reasoning?: string;
+  reasoningStart?: number;
+  reasoningEnd?: number;
   isError?: boolean;
 }
 
@@ -23,6 +27,7 @@ interface ModelInfo {
   id: string;
   name: string;
   icon: string;
+  supportsVision?: boolean;
 }
 
 interface ChatPanelProps {
@@ -39,6 +44,71 @@ interface ChatPanelProps {
   hideModelSwitcher?: boolean;
   isStreaming?: boolean;
   votedModelId?: string | null;
+  supportsVision?: boolean;
+}
+
+function ReasoningBlock({
+  reasoning,
+  start,
+  end,
+  hasContent,
+}: {
+  reasoning: string;
+  start?: number;
+  end?: number;
+  hasContent: boolean;
+}) {
+  const thinking = !hasContent; // still thinking while final content hasn't started
+  const [collapsed, setCollapsed] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  // Tick the timer every 500ms while still thinking, so elapsed time updates live
+  useEffect(() => {
+    if (!thinking) return;
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [thinking]);
+
+  // Auto-collapse once final content arrives
+  useEffect(() => {
+    if (hasContent) setCollapsed(true);
+  }, [hasContent]);
+
+  const elapsedMs = start ? (end ?? (thinking ? now : start)) - start : 0;
+  const elapsedSec = Math.max(0, Math.round(elapsedMs / 1000));
+
+  return (
+    <div className="mb-2">
+      <button
+        type="button"
+        onClick={() => setCollapsed((v) => !v)}
+        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors text-xs font-medium"
+      >
+        {thinking ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <Brain className="w-3.5 h-3.5" />
+        )}
+        <span>
+          {thinking ? `深度思考中 · ${elapsedSec}s` : `已深度思考 ${elapsedSec}s`}
+        </span>
+        {collapsed ? (
+          <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+        ) : (
+          <ChevronUp className="w-3.5 h-3.5 opacity-70" />
+        )}
+      </button>
+      {!collapsed && (
+        <div className="mt-2 pl-3 border-l-2 border-violet-200 dark:border-violet-800/60 text-gray-500 dark:text-gray-400">
+          <div className="prose prose-sm max-w-none text-xs leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
+              {reasoning}
+            </ReactMarkdown>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function ChatPanel({
@@ -55,6 +125,7 @@ export function ChatPanel({
   hideModelSwitcher = false,
   isStreaming = false,
   votedModelId = null,
+  supportsVision = false,
 }: ChatPanelProps) {
   const [grouped, setGrouped] = useState<Record<string, ModelInfo[]>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -213,13 +284,53 @@ export function ChatPanel({
                   }`}
                 >
                   {message.role === "assistant" && !message.isError ? (
-                    <div className="prose prose-sm prose-gray max-w-none text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:bg-gray-800 [&_pre]:text-gray-100 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_pre_code]:bg-transparent [&_pre_code]:text-gray-100 [&_pre_code]:p-0 [&_:not(pre)>code]:text-xs [&_:not(pre)>code]:bg-gray-200 [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:rounded [&_:not(pre)>code]:text-gray-800 [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
-                        {message.content}
-                      </ReactMarkdown>
-                    </div>
+                    <>
+                      {message.reasoning && (
+                        <ReasoningBlock
+                          reasoning={message.reasoning}
+                          start={message.reasoningStart}
+                          end={message.reasoningEnd}
+                          hasContent={!!message.content}
+                        />
+                      )}
+                      {message.content && (
+                        <div className="prose prose-sm prose-gray max-w-none text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:bg-gray-800 [&_pre]:text-gray-100 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:text-gray-100 [&_pre_code]:p-0 [&_:not(pre)>code]:text-xs [&_:not(pre)>code]:bg-gray-200 [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:rounded [&_:not(pre)>code]:text-gray-800 [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
+                            {message.content}
+                          </ReactMarkdown>
+                        </div>
+                      )}
+                    </>
                   ) : (
-                    <p className="text-sm leading-relaxed">{message.content}</p>
+                    <>
+                      {message.imageUrls && message.imageUrls.length > 0 && (
+                        <div className="mb-2">
+                          <div className="flex gap-1.5 flex-wrap">
+                            {message.imageUrls.map((url, i) => (
+                              <a
+                                key={i}
+                                href={`${API_BASE}${url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block"
+                              >
+                                <img
+                                  src={`${API_BASE}${url}`}
+                                  alt={`uploaded-${i}`}
+                                  className="max-w-[180px] max-h-[180px] rounded-lg border border-white/20 object-cover"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                          {message.role === "user" && !supportsVision && (
+                            <div className="mt-1.5 text-[11px] text-amber-200/90">
+                              ⚠️ 该模型不支持图片，已忽略图片只发送文字
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {message.content && <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>}
+                    </>
                   )}
                 </div>
               </div>

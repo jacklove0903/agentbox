@@ -9,6 +9,8 @@ services:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
     volumes:
       - pg-data:/var/lib/postgresql/data
     healthcheck:
@@ -31,8 +33,15 @@ services:
       SPRING_AI_OPENAI_API_KEY: ${SILICONFLOW_API_KEY}
       SPRING_AI_OPENAI_BASE_URL: https://api.siliconflow.cn
       JWT_SECRET: ${JWT_SECRET}
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx512m"
+    volumes:
+      - uploads-data:/app/uploads
     expose:
       - "8080"
+    deploy:
+      resources:
+        limits:
+          memory: 768M
 
   frontend:
     build:
@@ -60,3 +69,4 @@ services:
 
 volumes:
   pg-data:
+  uploads-data:

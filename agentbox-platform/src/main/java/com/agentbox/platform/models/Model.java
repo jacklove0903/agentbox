@@ -15,4 +15,6 @@ public class Model {
     private String modelName;
     private Boolean enabled;
     private Integer sortOrder;
+    /** Whether this model accepts image input in chat completions. */
+    private Boolean supportsVision;
 }

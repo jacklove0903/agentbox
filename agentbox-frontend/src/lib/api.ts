@@ -7,7 +7,10 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   const token = readToken();
   const headers = new Headers(init.headers as HeaderInit);
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  if (init.body && !headers.has("Content-Type")) {
+  // Do NOT force a Content-Type for FormData — the browser must set
+  // "multipart/form-data; boundary=..." itself, otherwise the request body is unparseable.
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (init.body && !isFormData && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
