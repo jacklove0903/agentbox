@@ -20,7 +20,7 @@ export function WelcomeDialog({ open, onOpenChange }: WelcomeDialogProps) {
       <DialogContent hideCloseButton className="sm:max-w-md p-0 gap-0 border-0 shadow-2xl rounded-2xl overflow-hidden bg-white">
         {/* Visually hidden title for accessibility */}
         <VisuallyHidden.Root>
-          <DialogTitle>Welcome to ChatHub</DialogTitle>
+          <DialogTitle>Welcome to agentbox</DialogTitle>
           <DialogDescription>Sign in or sign up to continue</DialogDescription>
         </VisuallyHidden.Root>
 
@@ -41,7 +41,7 @@ export function WelcomeDialog({ open, onOpenChange }: WelcomeDialogProps) {
           </div>
 
           {/* Title */}
-          <h2 className="text-2xl font-semibold text-gray-900 mb-2">Welcome to ChatHub</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-2">Welcome to agentbox</h2>
           <p className="text-gray-500 mb-8">Please sign in or sign up below</p>
 
           {/* OAuth Buttons */}

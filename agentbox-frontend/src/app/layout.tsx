@@ -3,8 +3,8 @@ import "./globals.css";
 import { ClientBody } from "./ClientBody";
 
 export const metadata: Metadata = {
-  title: "ChatHub - Use GPT, Gemini, Claude and more chatbots side-by-side",
-  description: "Use GPT, Gemini, Claude and more chatbots side-by-side",
+  title: "agentbox",
+  description: "agentbox - 多模型并行对话平台",
   icons: {
     icon: "https://ext.same-assets.com/2425995810/1211505447.png",
   },
