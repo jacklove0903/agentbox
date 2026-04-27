@@ -118,16 +118,16 @@ export function WebSummarizerPanel() {
     <div className="h-full flex flex-col p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Web Summarizer</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Web Summarizer</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           输入网页链接，AI 自动提取并生成结构化摘要
         </p>
       </div>
 
       {/* URL Input */}
       <div className="flex gap-3 mb-6">
-        <div className="flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-200 focus-within:border-blue-400 transition-all">
-          <Globe className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        <div className="flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus-within:ring-2 focus-within:ring-blue-200 dark:focus-within:ring-blue-900/50 focus-within:border-blue-400 transition-all">
+          <Globe className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
           <input
             type="text"
             value={url}
@@ -139,7 +139,7 @@ export function WebSummarizerPanel() {
               }
             }}
             placeholder="输入网页 URL，如 https://example.com/article"
-            className="flex-1 bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none"
+            className="flex-1 bg-transparent text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
           />
         </div>
         <button
@@ -160,14 +160,14 @@ export function WebSummarizerPanel() {
       </div>
 
       {/* Result Area */}
-      <div className="flex-1 min-h-0 flex flex-col rounded-2xl border border-gray-200 bg-white overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col rounded-2xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 overflow-hidden">
         <div className="flex-1 min-h-0 overflow-y-auto p-5">
           {error ? (
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50">
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
             </div>
           ) : summary ? (
-            <div className="prose prose-sm prose-gray max-w-none text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:bg-gray-800 [&_pre]:text-gray-100 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm [&_p]:my-2 [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-0.5 [&_strong]:text-gray-900">
+            <div className="prose prose-sm prose-gray max-w-none text-sm leading-relaxed text-gray-800 dark:text-gray-200 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:bg-gray-800 [&_pre]:text-gray-100 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm [&_p]:my-2 [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-0.5 [&_strong]:text-gray-900 dark:[&_strong]:text-gray-100">
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>{summary}</ReactMarkdown>
             </div>
           ) : status ? (
@@ -179,10 +179,10 @@ export function WebSummarizerPanel() {
             </div>
           ) : (
             <div className="h-full flex items-center justify-center">
-              <div className="text-center text-gray-400">
+              <div className="text-center text-gray-400 dark:text-gray-500">
                 <Globe className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p className="text-sm font-medium text-gray-500">粘贴网页链接开始总结</p>
-                <p className="text-xs text-gray-400 mt-1">支持新闻、博客、文档等网页内容</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">粘贴网页链接开始总结</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">支持新闻、博客、文档等网页内容</p>
               </div>
             </div>
           )}
@@ -190,11 +190,11 @@ export function WebSummarizerPanel() {
 
         {/* Footer actions */}
         {(summary || error) && (
-          <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100">
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 dark:border-neutral-700">
             <button
               type="button"
               onClick={handleClear}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               清除
@@ -203,7 +203,7 @@ export function WebSummarizerPanel() {
               type="button"
               onClick={handleCopy}
               disabled={!summary}
-              className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               title="复制摘要"
             >
               {copied ? (

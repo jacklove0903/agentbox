@@ -167,6 +167,8 @@ done
 cd agentbox-platform
 # 配置硅基流动 API Key（可选：改 application.properties 或 export）
 export SILICONFLOW_API_KEY=sk-xxx
+# 可选：配置 Serper Key，联网搜索将优先走稳定的 Google Serper API
+export SERPER_API_KEY=your_serper_key
 mvn spring-boot:run
 # → http://localhost:8080
 ```

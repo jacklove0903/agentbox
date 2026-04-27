@@ -26,11 +26,14 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MimeTypeUtils;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class ChatService {
@@ -229,6 +232,21 @@ public class ChatService {
         boolean finalWebSearch = webSearch;
         boolean finalEnableThinking = enableThinking;
         boolean ephemeral = Boolean.TRUE.equals(request.getEphemeral());
+        String resolvedSearchContext = null;
+        List<WebSearchService.SearchResult> resolvedSearchResults = List.of();
+        if (finalWebSearch) {
+            try {
+                var searchResults = webSearchService.search(trimmedMessage);
+                resolvedSearchResults = searchResults;
+                resolvedSearchContext = webSearchService.buildSearchContext(searchResults);
+            } catch (Exception e) {
+                resolvedSearchResults = List.of();
+                resolvedSearchContext = "网络搜索失败（" + e.getMessage()
+                        + "），请基于你的知识回答用户的问题。";
+            }
+        }
+        final String sharedSearchContext = resolvedSearchContext;
+        final List<WebSearchService.SearchResult> sharedSearchResults = resolvedSearchResults;
 
         // Ephemeral requests (translator, prompt-enhancer, …) run stateless: no conversation,
         // no persisted messages, no smart title. They must always have a conversationId though
@@ -274,7 +292,8 @@ public class ChatService {
 
         validModelIds.stream()
                 .map(modelId -> streamSingleModel(userId, modelId, trimmedMessage,
-                        finalWebSearch, finalConversationId, imageUrls, finalEnableThinking, ephemeral))
+                        finalWebSearch, sharedSearchContext, sharedSearchResults, finalConversationId,
+                        imageUrls, finalEnableThinking, ephemeral))
                 .forEach(modelFluxes::add);
 
         // Smart title only for persisted conversations.
@@ -304,11 +323,29 @@ public class ChatService {
 
     private Flux<ServerSentEvent<String>> streamSingleModel(String userId, String modelId,
                                                                String userMessage, boolean webSearch,
-                                                               String conversationId, List<String> imageUrls,
+                                                               String sharedSearchContext,
+                                                               List<WebSearchService.SearchResult> sharedSearchResults,
+                                                               String conversationId,
+                                                               List<String> imageUrls,
                                                                boolean enableThinking, boolean ephemeral) {
         return Flux.<ServerSentEvent<String>>create(sink -> {
+            AtomicBoolean cancelled = new AtomicBoolean(false);
+            AtomicReference<Disposable> streamSubscriptionRef = new AtomicReference<>();
+            Disposable cancelStream = () -> {
+                cancelled.set(true);
+                Disposable disposable = streamSubscriptionRef.getAndSet(null);
+                if (disposable != null && !disposable.isDisposed()) {
+                    disposable.dispose();
+                }
+            };
+            sink.onCancel(cancelStream);
+            sink.onDispose(cancelStream);
             modelExecutor.submit(() -> {
                 try {
+                    if (cancelled.get()) {
+                        sink.complete();
+                        return;
+                    }
                     // 1. Fetch history scoped to conversation + model.
                     //    Skip history entirely for ephemeral (tool) requests — they must not
                     //    leak context from the user's real conversations.
@@ -358,21 +395,24 @@ public class ChatService {
 
                     // 2.5 Web Search: search and inject results as system context
                     if (webSearch) {
-                        sink.next(buildSseEvent(modelId, "", false, null, true));
-                        try {
-                            var searchResults = webSearchService.search(userMessage);
-                            String searchContext = webSearchService.buildSearchContext(searchResults);
-                            conversationMessages.add(0, new SystemMessage(searchContext));
-                        } catch (Exception e) {
-                            conversationMessages.add(0, new SystemMessage(
-                                    "网络搜索失败（" + e.getMessage() + "），请基于你的知识回答用户的问题。"));
+                        if (cancelled.get() || sink.isCancelled()) {
+                            sink.complete();
+                            return;
                         }
+                        sink.next(buildSseEvent(modelId, "", false, null, true));
+                        if (sharedSearchResults != null && !sharedSearchResults.isEmpty()) {
+                            sink.next(buildSourcesEvent(modelId, sharedSearchResults));
+                        }
+                        String searchContext = sharedSearchContext != null
+                                ? sharedSearchContext
+                                : "网络搜索未返回结果。请基于你的知识回答用户的问题。";
+                        conversationMessages.add(0, new SystemMessage(searchContext));
                     }
 
                     // 3. Save user message (include attached image URLs so they
                     //    re-appear when the conversation is reloaded later).
                     //    Ephemeral requests do not persist.
-                    if (!ephemeral) {
+                    if (!ephemeral && !cancelled.get() && !sink.isCancelled()) {
                         Message userMsg = new Message();
                         userMsg.setUserId(userId);
                         userMsg.setConversationId(conversationId);
@@ -401,40 +441,51 @@ public class ChatService {
                     }
                     OpenAiChatOptions streamOptions = optsBuilder.build();
 
-                    chatModel.stream(new Prompt(conversationMessages, streamOptions))
-                            .doOnNext(chatResp -> {
+                    CountDownLatch streamFinished = new CountDownLatch(1);
+                    Disposable disposable = chatModel.stream(new Prompt(conversationMessages, streamOptions))
+                            .doFinally(signalType -> streamFinished.countDown())
+                            .subscribe(chatResp -> {
+                                if (cancelled.get() || sink.isCancelled()) {
+                                    return;
+                                }
                                 if (chatResp.getResult() == null || chatResp.getResult().getOutput() == null) {
                                     return;
                                 }
                                 var output = chatResp.getResult().getOutput();
-                                // Emit reasoning (thinking) delta if present — but only when the
-                                // caller actually wants it. Some models ignore enable_thinking=false
-                                // and still stream reasoning, which would leak into plain-text clients
-                                // (e.g. the translator panel).
                                 if (enableThinking) {
                                     Object reasoning = output.getMetadata() != null
                                             ? output.getMetadata().get("reasoningContent")
                                             : null;
-                                    if (reasoning instanceof String rs && !rs.isEmpty()) {
+                                    if (reasoning instanceof String rs && !rs.isEmpty() && !cancelled.get() && !sink.isCancelled()) {
                                         sink.next(buildReasoningEvent(modelId, rs));
                                     }
                                 }
-                                // Emit content delta
                                 String delta = output.getText();
-                                if (delta != null && !delta.isEmpty()) {
+                                if (delta != null && !delta.isEmpty() && !cancelled.get() && !sink.isCancelled()) {
                                     fullContent.append(delta);
                                     sink.next(buildSseEvent(modelId, delta, false, null));
                                 }
-                            })
-                            .doOnError(e -> {
-                                sink.next(buildSseEvent(modelId, "", true,
-                                        "Model call failed: " + e.getMessage()));
-                                sink.complete();
-                            })
-                            .blockLast(); // Block THIS thread (not main) until stream completes
+                            }, e -> {
+                                if (!cancelled.get() && !sink.isCancelled()) {
+                                    sink.next(buildSseEvent(modelId, "", true,
+                                            "Model call failed: " + e.getMessage()));
+                                    sink.complete();
+                                }
+                            }, () -> {
+                                if (!cancelled.get() && !sink.isCancelled()) {
+                                    sink.next(buildSseEvent(modelId, "", true, null));
+                                    sink.complete();
+                                }
+                            });
+                    streamSubscriptionRef.set(disposable);
+                    streamFinished.await();
+
+                    if (cancelled.get() || sink.isCancelled()) {
+                        return;
+                    }
 
                     // 5. Persist AI response (skipped for ephemeral tool requests)
-                    if (!ephemeral) {
+                    if (!ephemeral && fullContent.length() > 0) {
                         Message aiMsg = new Message();
                         aiMsg.setUserId(userId);
                         aiMsg.setConversationId(conversationId);
@@ -444,12 +495,11 @@ public class ChatService {
                         aiMsg.setTimestamp(LocalDateTime.now());
                         messageRepository.insert(aiMsg);
                     }
-
-                    sink.next(buildSseEvent(modelId, "", true, null));
-                    sink.complete();
                 } catch (Exception e) {
-                    sink.next(buildSseEvent(modelId, "", true, "Failed: " + e.getMessage()));
-                    sink.complete();
+                    if (!cancelled.get() && !sink.isCancelled()) {
+                        sink.next(buildSseEvent(modelId, "", true, "Failed: " + e.getMessage()));
+                        sink.complete();
+                    }
                 }
             });
         });
@@ -520,6 +570,32 @@ public class ChatService {
         } catch (Exception e) {
             return ServerSentEvent.<String>builder()
                     .data("{\"type\":\"reasoning\",\"modelId\":\"" + modelId + "\",\"content\":\"\"}")
+                    .build();
+        }
+    }
+
+    private ServerSentEvent<String> buildSourcesEvent(String modelId, List<WebSearchService.SearchResult> sources) {
+        try {
+            Map<String, Object> chunk = new LinkedHashMap<>();
+            chunk.put("type", "sources");
+            chunk.put("modelId", modelId);
+
+            List<Map<String, String>> items = new ArrayList<>();
+            for (WebSearchService.SearchResult r : sources) {
+                Map<String, String> item = new LinkedHashMap<>();
+                item.put("title", r.title());
+                item.put("url", r.url());
+                item.put("snippet", r.snippet());
+                items.add(item);
+            }
+            chunk.put("sources", items);
+
+            return ServerSentEvent.<String>builder()
+                    .data(objectMapper.writeValueAsString(chunk))
+                    .build();
+        } catch (Exception e) {
+            return ServerSentEvent.<String>builder()
+                    .data("{\"type\":\"sources\",\"modelId\":\"" + modelId + "\",\"sources\":[]}")
                     .build();
         }
     }

@@ -32,6 +32,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: postgres123
       SPRING_AI_OPENAI_API_KEY: sk-zhyvilduzlqzuprpsnoivxutpdmhlmabqvfenwsdnshdegag
       SPRING_AI_OPENAI_BASE_URL: https://api.siliconflow.cn
+      SERPER_API_KEY: ${SERPER_API_KEY:-}
       JWT_SECRET: agentbox-prod-jwt-secret-please-rotate-me-at-least-256-bits-long-0xA1B2C3
       JAVA_TOOL_OPTIONS: "-Xms256m -Xmx512m"
     volumes:

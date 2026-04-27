@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { Globe, ImagePlus, Wand2, Image, Send, Maximize2, Copy, Loader2, X, Brain } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Globe, ImagePlus, Wand2, Image, Send, Maximize2, Minimize2, Copy, Loader2, X, Brain, Square } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { apiFetch } from "@/lib/api";
 
@@ -13,15 +13,18 @@ interface ChatInputProps {
     imageUrls?: string[];
   }) => Promise<void> | void;
   modelIds: string[];
+  isStreaming?: boolean;
+  onStop?: () => void;
 }
 
-export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
+export function ChatInput({ onSendMessage, modelIds, isStreaming, onStop }: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [imageGenEnabled, setImageGenEnabled] = useState(false);
   const [thinkingEnabled, setThinkingEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attachedImages, setAttachedImages] = useState<{ file: File; preview: string }[]>([]);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +187,27 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
     });
   };
 
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  const handleToggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch (e) {
+      console.error("Fullscreen toggle failed:", e);
+      setError("无法切换全屏，请检查浏览器权限");
+    }
+  };
+
   return (
     <div
       className={`relative bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md rounded-2xl shadow-lg border p-3 transition-colors ${
@@ -209,7 +233,7 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder="输入消息，Shift+Enter 换行；可粘贴或拖拽图片"
-            className="w-full resize-none bg-transparent border-0 outline-none text-gray-800 dark:text-gray-200 placeholder-gray-400 text-sm leading-relaxed min-h-[24px] max-h-[150px]"
+            className="w-full resize-none bg-transparent border-0 outline-none text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 text-sm leading-relaxed min-h-[24px] max-h-[150px]"
             rows={1}
             disabled={isLoading}
           />
@@ -253,8 +277,8 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
                   onClick={() => setWebSearchEnabled(!webSearchEnabled)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     webSearchEnabled
-                      ? "bg-neutral-800 text-white border border-neutral-700"
-                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      ? "bg-neutral-800 text-white border border-neutral-700 dark:border-neutral-600"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-neutral-800 dark:text-gray-400 dark:hover:bg-neutral-700"
                   }`}
                   disabled={isLoading}
                 >
@@ -274,15 +298,15 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     thinkingEnabled
                       ? "bg-violet-600 text-white border border-violet-500"
-                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-neutral-800 dark:text-gray-400 dark:hover:bg-neutral-700"
                   }`}
                   disabled={isLoading}
                 >
                   <Brain className="w-3.5 h-3.5" />
-                  <span>深度思考</span>
+                  <span>Deep Thinking</span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent>开启后支持推理模型的思考过程（如 Qwen3）</TooltipContent>
+              <TooltipContent>Enable reasoning output for supported models (e.g. Qwen3)</TooltipContent>
             </Tooltip>
 
             {/* Image Generation Toggle */}
@@ -293,8 +317,8 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
                   onClick={() => setImageGenEnabled(!imageGenEnabled)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     imageGenEnabled
-                      ? "bg-neutral-800 text-white border border-neutral-700"
-                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      ? "bg-neutral-800 text-white border border-neutral-700 dark:border-neutral-600"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-neutral-800 dark:text-gray-400 dark:hover:bg-neutral-700"
                   }`}
                   disabled={isLoading}
                 >
@@ -313,7 +337,7 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
                 <button
                   type="button"
                   onClick={handleEnhance}
-                  className={`p-2 rounded-lg transition-colors ${isEnhancing ? "bg-purple-100 text-purple-600" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
+                  className={`p-2 rounded-lg transition-colors ${isEnhancing ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600 dark:hover:bg-neutral-800 dark:text-gray-500 dark:hover:text-gray-300"}`}
                   disabled={isLoading || isEnhancing || !message.trim()}
                 >
                   {isEnhancing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
@@ -327,7 +351,7 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
                 <button
                   type="button"
                   onClick={() => imageInputRef.current?.click()}
-                  className={`p-2 rounded-lg transition-colors ${attachedImages.length > 0 ? "bg-blue-100 text-blue-600" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
+                  className={`p-2 rounded-lg transition-colors ${attachedImages.length > 0 ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600 dark:hover:bg-neutral-800 dark:text-gray-500 dark:hover:text-gray-300"}`}
                   disabled={isLoading}
                 >
                   <Image className="w-4 h-4" />
@@ -353,7 +377,7 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 dark:hover:bg-neutral-800 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
                   disabled={isLoading}
                 >
                   <Copy className="w-4 h-4" />
@@ -366,35 +390,42 @@ export function ChatInput({ onSendMessage, modelIds }: ChatInputProps) {
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                  onClick={handleToggleFullscreen}
+                  className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 dark:hover:bg-neutral-800 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
                   disabled={isLoading}
                 >
-                  <Maximize2 className="w-4 h-4" />
+                  {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                 </button>
               </TooltipTrigger>
-              <TooltipContent>Fullscreen</TooltipContent>
+              <TooltipContent>{isFullscreen ? "Exit Fullscreen" : "Fullscreen"}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={(!message.trim() && attachedImages.length === 0) || isLoading}
-                  className={`p-2 rounded-lg transition-all ${
-                    (message.trim() || attachedImages.length > 0) && !isLoading
-                      ? "bg-neutral-800 text-white hover:bg-neutral-900"
-                      : "bg-gray-100 text-gray-300 cursor-not-allowed"
-                  }`}
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
+                {isStreaming ? (
+                  <button
+                    type="button"
+                    onClick={onStop}
+                    className="p-2 rounded-lg bg-neutral-800 text-white hover:bg-red-600 transition-all"
+                  >
+                    <Square className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={(!message.trim() && attachedImages.length === 0) || isLoading}
+                    className={`p-2 rounded-lg transition-all ${
+                      (message.trim() || attachedImages.length > 0) && !isLoading
+                        ? "bg-neutral-800 text-white hover:bg-neutral-900"
+                        : "bg-gray-100 text-gray-300 cursor-not-allowed"
+                    }`}
+                  >
                     <Send className="w-4 h-4" />
-                  )}
-                </button>
+                  </button>
+                )}
               </TooltipTrigger>
-              <TooltipContent>Send Message</TooltipContent>
+              <TooltipContent>{isStreaming ? "Stop Generating" : "Send Message"}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>

@@ -106,8 +106,8 @@ export function ImageGeneratorPanel() {
     <div className="h-full flex flex-col p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Image Generator</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Image Generator</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           输入描述，AI 为你生成图片
         </p>
       </div>
@@ -121,7 +121,7 @@ export function ImageGeneratorPanel() {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="描述你想要生成的图片，例如：A futuristic city at sunset, cyberpunk style..."
-              className="w-full h-24 p-4 rounded-xl border border-gray-200 bg-white text-sm text-gray-800 placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
+              className="w-full h-24 p-4 rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/50 focus:border-blue-400 transition-all"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                   e.preventDefault();
@@ -140,7 +140,7 @@ export function ImageGeneratorPanel() {
                 setModel(newModel);
                 setSize(SIZES[newModel][0].value);
               }}
-              className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
+              className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/50 transition-all"
             >
               {MODELS.map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
@@ -150,7 +150,7 @@ export function ImageGeneratorPanel() {
             <select
               value={size}
               onChange={(e) => setSize(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
+              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/50 transition-all"
             >
               {(SIZES[model] || []).map((s) => (
                 <option key={s.value} value={s.value}>{s.label}</option>
@@ -175,25 +175,25 @@ export function ImageGeneratorPanel() {
           </div>
 
           {/* Image Display */}
-          <div className="flex-1 min-h-0 rounded-2xl border border-gray-200 bg-white overflow-hidden flex items-center justify-center">
+          <div className="flex-1 min-h-0 rounded-2xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 overflow-hidden flex items-center justify-center">
             {error ? (
               <div className="p-6">
-                <p className="text-sm text-red-500">{error}</p>
+                <p className="text-sm text-red-500 dark:text-red-400">{error}</p>
               </div>
             ) : isGenerating ? (
-              <div className="flex flex-col items-center gap-3 text-gray-400">
+              <div className="flex flex-col items-center gap-3 text-gray-400 dark:text-gray-500">
                 <Loader2 className="w-10 h-10 animate-spin" />
-                <p className="text-sm font-medium">正在生成图片，请稍候...</p>
-                <p className="text-xs text-gray-400">通常需要 10-30 秒</p>
+                <p className="text-sm font-medium text-gray-400 dark:text-gray-300">正在生成图片，请稍候...</p>
+                <p className="text-xs text-gray-400 dark:text-gray-600">通常需要 10-30 秒</p>
               </div>
             ) : displayImage ? (
               brokenUrls.has(displayImage.id) ? (
-                <div className="flex flex-col items-center gap-2 text-gray-400">
-                  <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500">
+                  <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-neutral-800 flex items-center justify-center">
                     <span className="text-2xl">🖼️</span>
                   </div>
-                  <p className="text-sm font-medium text-gray-500">图片已过期</p>
-                  <p className="text-xs text-gray-400">图片 URL 有效期为 1 小时，请重新生成</p>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">图片已过期</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">图片 URL 有效期为 1 小时，请重新生成</p>
                 </div>
               ) : (
                 <div className="relative w-full h-full group">
@@ -220,12 +220,12 @@ export function ImageGeneratorPanel() {
                 </div>
               )
             ) : (
-              <div className="text-center text-gray-400">
-                <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-gray-100 flex items-center justify-center">
+              <div className="text-center text-gray-400 dark:text-gray-500">
+                <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-gray-100 dark:bg-neutral-800 flex items-center justify-center">
                   <span className="text-2xl">🎨</span>
                 </div>
-                <p className="text-sm font-medium text-gray-500">输入描述开始生成</p>
-                <p className="text-xs text-gray-400 mt-1">Ctrl + Enter 快速生成</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">输入描述开始生成</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Ctrl + Enter 快速生成</p>
               </div>
             )}
           </div>
@@ -233,12 +233,12 @@ export function ImageGeneratorPanel() {
 
         {/* Right: History */}
         <div className="w-48 flex-shrink-0 flex flex-col">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
             历史记录
           </h3>
           <div className="flex-1 min-h-0 overflow-y-auto space-y-2">
             {history.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center mt-8">暂无记录</p>
+              <p className="text-xs text-gray-400 dark:text-gray-600 text-center mt-8">暂无记录</p>
             ) : (
               history.map((record) => (
                 <button
@@ -248,12 +248,12 @@ export function ImageGeneratorPanel() {
                   className={`w-full rounded-lg overflow-hidden border-2 transition-all ${
                     selectedImage?.id === record.id
                       ? "border-blue-400 shadow-sm"
-                      : "border-transparent hover:border-gray-300"
+                      : "border-transparent hover:border-gray-300 dark:hover:border-neutral-600"
                   }`}
                 >
                   {brokenUrls.has(record.id) ? (
-                    <div className="w-full aspect-square bg-gray-100 flex items-center justify-center">
-                      <span className="text-xs text-gray-400">已过期</span>
+                    <div className="w-full aspect-square bg-gray-100 dark:bg-neutral-800 flex items-center justify-center">
+                      <span className="text-xs text-gray-400 dark:text-gray-500">已过期</span>
                     </div>
                   ) : (
                     <img

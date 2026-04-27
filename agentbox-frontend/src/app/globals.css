@@ -90,7 +90,7 @@
   background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 50%, #f0f0f0 100%);
 }
 .dark .main-gradient {
-  background: linear-gradient(135deg, #141414 0%, #1a1a1a 50%, #111111 100%);
+  background: linear-gradient(135deg, #0f0f10 0%, #141416 45%, #0b0b0c 100%);
 }
 
 /* Glass effect */

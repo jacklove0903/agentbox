@@ -187,8 +187,8 @@ export function TranslatorPanel() {
     <div className="h-full flex flex-col p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">AI Translator</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">AI Translator</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           输入即翻译，基于大语言模型的实时智能翻译
         </p>
       </div>
@@ -198,7 +198,7 @@ export function TranslatorPanel() {
         <select
           value={sourceLang}
           onChange={(e) => setSourceLang(e.target.value)}
-          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
+          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/50 focus:border-blue-400 transition-all"
         >
           {LANGUAGES.map((lang) => (
             <option key={lang.code} value={lang.code}>
@@ -211,7 +211,7 @@ export function TranslatorPanel() {
           type="button"
           onClick={handleSwapLanguages}
           disabled={sourceLang === "auto"}
-          className="p-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          className="p-2.5 rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-gray-50 dark:hover:bg-neutral-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           title="交换语言"
         >
           <ArrowRightLeft className="w-4 h-4" />
@@ -220,7 +220,7 @@ export function TranslatorPanel() {
         <select
           value={targetLang}
           onChange={(e) => setTargetLang(e.target.value)}
-          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
+          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/50 focus:border-blue-400 transition-all"
         >
           {LANGUAGES.filter((l) => l.code !== "auto").map((lang) => (
             <option key={lang.code} value={lang.code}>
@@ -233,15 +233,15 @@ export function TranslatorPanel() {
       {/* Translation Panels */}
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-4">
         {/* Source */}
-        <div className="flex flex-col rounded-2xl border border-gray-200 bg-white overflow-hidden">
+        <div className="flex flex-col rounded-2xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 overflow-hidden">
           <textarea
             value={sourceText}
             onChange={(e) => setSourceText(e.target.value)}
             placeholder="输入文本，自动翻译..."
-            className="flex-1 p-4 resize-none bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none leading-relaxed"
+            className="flex-1 p-4 resize-none bg-transparent text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none leading-relaxed"
           />
-          <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100">
-            <span className="text-xs text-gray-400">
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 dark:border-neutral-700">
+            <span className="text-xs text-gray-400 dark:text-gray-500">
               {sourceText.length} 字符
             </span>
             {isTranslating && (
@@ -254,24 +254,24 @@ export function TranslatorPanel() {
         </div>
 
         {/* Target */}
-        <div className="flex flex-col rounded-2xl border border-gray-200 bg-white overflow-hidden">
+        <div className="flex flex-col rounded-2xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 overflow-hidden">
           <div className="flex-1 p-4 overflow-y-auto">
             {targetText ? (
-              <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+              <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">
                 {targetText}
               </p>
             ) : (
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-gray-400 dark:text-gray-500">
                 {sourceText.trim() ? "正在等待输入完成..." : "翻译结果将显示在这里..."}
               </p>
             )}
           </div>
-          <div className="flex items-center justify-end px-4 py-2.5 border-t border-gray-100">
+          <div className="flex items-center justify-end px-4 py-2.5 border-t border-gray-100 dark:border-neutral-700">
             <button
               type="button"
               onClick={handleCopy}
               disabled={!targetText || isTranslating}
-              className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               title="复制结果"
             >
               {copied ? (

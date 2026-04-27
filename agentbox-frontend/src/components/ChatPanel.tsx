@@ -17,6 +17,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   imageUrls?: string[];
+  searchSources?: { title: string; url: string; snippet?: string }[];
   reasoning?: string;
   reasoningStart?: number;
   reasoningEnd?: number;
@@ -45,6 +46,7 @@ interface ChatPanelProps {
   isStreaming?: boolean;
   votedModelId?: string | null;
   supportsVision?: boolean;
+  isStreamingStopped?: boolean;
 }
 
 function ReasoningBlock({
@@ -52,13 +54,15 @@ function ReasoningBlock({
   start,
   end,
   hasContent,
+  isStopped,
 }: {
   reasoning: string;
   start?: number;
   end?: number;
   hasContent: boolean;
+  isStopped?: boolean;
 }) {
-  const thinking = !hasContent; // still thinking while final content hasn't started
+  const thinking = !hasContent && !isStopped; // still thinking while final content hasn't started and not stopped
   const [collapsed, setCollapsed] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
@@ -90,7 +94,7 @@ function ReasoningBlock({
           <Brain className="w-3.5 h-3.5" />
         )}
         <span>
-          {thinking ? `深度思考中 · ${elapsedSec}s` : `已深度思考 ${elapsedSec}s`}
+          {thinking ? `Thinking · ${elapsedSec}s` : isStopped ? `Stopped after ${elapsedSec}s` : `Thought for ${elapsedSec}s`}
         </span>
         {collapsed ? (
           <ChevronDown className="w-3.5 h-3.5 opacity-70" />
@@ -99,7 +103,7 @@ function ReasoningBlock({
         )}
       </button>
       {!collapsed && (
-        <div className="mt-2 pl-3 border-l-2 border-violet-200 dark:border-violet-800/60 text-gray-500 dark:text-gray-400">
+        <div className="mt-2 pl-3 border-l-2 border-violet-200 dark:border-violet-800/60 text-gray-500 dark:text-gray-300">
           <div className="prose prose-sm max-w-none text-xs leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
               {reasoning}
@@ -126,6 +130,7 @@ export function ChatPanel({
   isStreaming = false,
   votedModelId = null,
   supportsVision = false,
+  isStreamingStopped = false,
 }: ChatPanelProps) {
   const [grouped, setGrouped] = useState<Record<string, ModelInfo[]>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -210,7 +215,7 @@ export function ChatPanel({
             type="button"
             onClick={() => onRegenerate?.()}
             disabled={isStreaming || !messages.some((m) => m.role === "user")}
-            className="p-1.5 rounded-md hover:bg-gray-100/60 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-1.5 rounded-md hover:bg-gray-100/60 dark:hover:bg-neutral-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="重新生成"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -231,7 +236,7 @@ export function ChatPanel({
               URL.revokeObjectURL(a.href);
             }}
             disabled={messages.length === 0}
-            className="p-1.5 rounded-md hover:bg-gray-100/60 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-1.5 rounded-md hover:bg-gray-100/60 dark:hover:bg-neutral-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="导出 Markdown"
           >
             <Download className="w-3.5 h-3.5" />
@@ -240,7 +245,7 @@ export function ChatPanel({
             type="button"
             onClick={() => onClear?.()}
             disabled={messages.length === 0}
-            className="p-1.5 rounded-md hover:bg-gray-100/60 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-1.5 rounded-md hover:bg-gray-100/60 dark:hover:bg-neutral-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="清空对话"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -252,10 +257,10 @@ export function ChatPanel({
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <div className="text-center text-gray-400 dark:text-gray-200">
+            <div className="text-center text-gray-400 dark:text-gray-500">
               <img src={modelIcon} alt={modelName} className="w-14 h-14 rounded-2xl mx-auto mb-3 opacity-40" />
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-200">{modelName}</p>
-              <p className="text-xs text-gray-400 dark:text-gray-200 mt-1">输入消息开始对话</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-300">{modelName}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">输入消息开始对话</p>
             </div>
           </div>
         ) : (
@@ -277,24 +282,47 @@ export function ChatPanel({
                 <div
                   className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
                     message.role === "user"
-                      ? "bg-neutral-800 text-white rounded-br-md"
+                      ? "bg-neutral-800 dark:bg-neutral-700 text-white rounded-br-md"
                       : message.isError
                         ? "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-bl-md"
-                        : "bg-gray-50 dark:bg-neutral-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-neutral-700 rounded-bl-md"
+                        : "bg-gray-50 dark:bg-neutral-900 text-gray-800 dark:text-gray-100 border border-gray-100 dark:border-neutral-700 rounded-bl-md"
                   }`}
                 >
                   {message.role === "assistant" && !message.isError ? (
                     <>
+                      {message.searchSources && message.searchSources.length > 0 && (
+                        <div className="mb-2.5 rounded-lg border border-sky-200/70 dark:border-sky-900/50 bg-sky-50/70 dark:bg-sky-950/20 p-2.5">
+                          <div className="text-[11px] font-semibold text-sky-700 dark:text-sky-300 mb-1.5">Web Search 来源</div>
+                          <div className="space-y-1.5">
+                            {message.searchSources.map((src, i) => (
+                              <a
+                                key={`${src.url}-${i}`}
+                                href={src.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block rounded-md border border-sky-200/70 dark:border-sky-900/50 bg-white/80 dark:bg-neutral-900/40 p-2 hover:bg-white dark:hover:bg-neutral-900 transition-colors"
+                              >
+                                <div className="text-xs font-medium text-sky-900 dark:text-sky-100 line-clamp-1">{src.title}</div>
+                                <div className="text-[11px] text-sky-600 dark:text-sky-300/90 break-all line-clamp-1">{src.url}</div>
+                                {src.snippet && (
+                                  <div className="text-[11px] text-gray-600 dark:text-gray-400 mt-0.5 line-clamp-2">{src.snippet}</div>
+                                )}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {message.reasoning && (
                         <ReasoningBlock
                           reasoning={message.reasoning}
                           start={message.reasoningStart}
                           end={message.reasoningEnd}
                           hasContent={!!message.content}
+                          isStopped={isStreamingStopped && !message.content}
                         />
                       )}
                       {message.content && (
-                        <div className="prose prose-sm prose-gray max-w-none text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:bg-gray-800 [&_pre]:text-gray-100 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:text-gray-100 [&_pre_code]:p-0 [&_:not(pre)>code]:text-xs [&_:not(pre)>code]:bg-gray-200 [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:rounded [&_:not(pre)>code]:text-gray-800 [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5">
+                        <div className="prose prose-sm prose-gray dark:prose-invert max-w-none text-sm leading-relaxed text-gray-800 dark:text-gray-100 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:bg-gray-800 dark:[&_pre]:bg-neutral-950 [&_pre]:text-gray-100 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:text-gray-100 [&_pre_code]:p-0 [&_:not(pre)>code]:text-xs [&_:not(pre)>code]:bg-gray-200 dark:[&_:not(pre)>code]:bg-neutral-700 [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:rounded [&_:not(pre)>code]:text-gray-800 dark:[&_:not(pre)>code]:text-gray-100 [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5 dark:[&_strong]:text-white dark:[&_a]:text-blue-300">
                           <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
                             {message.content}
                           </ReactMarkdown>

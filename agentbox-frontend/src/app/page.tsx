@@ -24,6 +24,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   imageUrls?: string[];
+  searchSources?: { title: string; url: string; snippet?: string }[];
   reasoning?: string;
   reasoningStart?: number;
   reasoningEnd?: number;
@@ -61,6 +62,12 @@ export default function Home() {
 
   // Tracks which modelIds have already had history fetched (avoid duplicate loads).
   const loadedHistoryRef = useRef<Set<string>>(new Set());
+
+  // AbortControllers for active streams – keyed by modelId so we can cancel individually.
+  const streamAbortRef = useRef<Map<string, AbortController>>(new Map());
+  
+  // Track which models were stopped by user (to handle thinking display correctly)
+  const [stoppedModels, setStoppedModels] = useState<Set<string>>(new Set());
 
   // Fetch persisted history for a model and merge into state (only if not loaded yet).
   const loadHistory = useCallback(async (mid: string) => {
@@ -216,6 +223,13 @@ export default function Home() {
     conversationId?: string | null,
     imageUrls?: string[],
   ) => {
+    setStoppedModels((prev) => {
+      const next = new Set(prev);
+      next.delete(mid);
+      return next;
+    });
+    const ac = new AbortController();
+    streamAbortRef.current.set(mid, ac);
     setStreamingModels((prev) => new Set(prev).add(mid));
     try {
       const res = await apiFetch("/api/chat/stream", {
@@ -227,6 +241,7 @@ export default function Home() {
           conversationId: conversationId || undefined,
           imageUrls: imageUrls && imageUrls.length > 0 ? imageUrls : undefined,
         }),
+        signal: ac.signal,
       });
 
       if (!res.ok) throw new Error(`chat request failed: ${res.status}`);
@@ -266,7 +281,6 @@ export default function Home() {
           } catch {
             continue;
           }
-
           // Handle conversation meta event (auto-created conversationId)
           if (parsed.type === "conversation" && parsed.conversationId) {
             setActiveConversationId((prev) => prev || parsed.conversationId);
@@ -309,6 +323,33 @@ export default function Home() {
             continue;
           }
 
+          if (parsed.type === "sources" && Array.isArray(parsed.sources)) {
+            const sources = parsed.sources
+              .map((s: unknown) => {
+                const obj = (s || {}) as { title?: string; url?: string; snippet?: string };
+                return {
+                  title: String(obj.title || "").trim(),
+                  url: String(obj.url || "").trim(),
+                  snippet: String(obj.snippet || "").trim(),
+                };
+              })
+              .filter((s: { title: string; url: string }) => !!s.title && !!s.url);
+
+            if (sources.length > 0) {
+              setMessages((prev) => {
+                const msgs = [...(prev[mid] || [])];
+                const lastIdx = msgs.length - 1;
+                if (lastIdx >= 0 && msgs[lastIdx].role === "assistant" && !msgs[lastIdx].isError) {
+                  msgs[lastIdx] = { ...msgs[lastIdx], searchSources: sources };
+                } else {
+                  msgs.push({ role: "assistant" as const, content: "", searchSources: sources });
+                }
+                return { ...prev, [mid]: msgs };
+              });
+            }
+            continue;
+          }
+
           const chunk = parsed as { modelId: string; content: string; done: boolean; error?: string; searching?: boolean };
 
           if (chunk.error) {
@@ -324,10 +365,14 @@ export default function Home() {
 
           if (chunk.done) {
             streamDone = true;
+            setStoppedModels((prev) => {
+              const next = new Set(prev);
+              next.delete(mid);
+              return next;
+            });
             continue;
           }
 
-          // Handle web search indicator
           if (chunk.searching) {
             if (!searchingPhase) {
               searchingPhase = true;
@@ -335,7 +380,7 @@ export default function Home() {
                 ...prev,
                 [mid]: [
                   ...(prev[mid] || []),
-                  { role: "assistant" as const, content: "\uD83D\uDD0D 正在搜索网络..." },
+                  { role: "assistant" as const, content: "🔍 正在搜索网络..." },
                 ],
               }));
             }
@@ -351,7 +396,6 @@ export default function Home() {
               const msgs = [...(prev[mid] || [])];
               const lastIdx = msgs.length - 1;
               const last = lastIdx >= 0 ? msgs[lastIdx] : null;
-              // If last message is a placeholder (searching or reasoning-only), reuse it
               if (last && last.role === "assistant" && !last.isError && (searchingPhase || last.reasoning)) {
                 msgs[lastIdx] = {
                   ...last,
@@ -377,18 +421,35 @@ export default function Home() {
         if (streamDone) break;
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setMessages((prev) => {
+          const msgs = [...(prev[mid] || [])];
+          const lastIdx = msgs.length - 1;
+          const now = Date.now();
+          if (lastIdx >= 0 && msgs[lastIdx].role === "assistant" && !msgs[lastIdx].isError && msgs[lastIdx].reasoning && !msgs[lastIdx].content) {
+            msgs[lastIdx] = {
+              ...msgs[lastIdx],
+              reasoningEnd: msgs[lastIdx].reasoningEnd || now,
+            };
+            return { ...prev, [mid]: msgs };
+          }
+          return prev;
+        });
+        return;
+      }
       setMessages((prev) => ({
         ...prev,
         [mid]: [
           ...(prev[mid] || []),
           {
             role: "assistant" as const,
-            content: `请求失败: ${e instanceof Error ? e.message : String(e)}`,
+            content: `生成失败：${e instanceof Error ? e.message : String(e)}`,
             isError: true,
           },
         ],
       }));
     } finally {
+      streamAbortRef.current.delete(mid);
       setStreamingModels((prev) => {
         const next = new Set(prev);
         next.delete(mid);
@@ -445,6 +506,11 @@ export default function Home() {
       return next;
     });
     loadedHistoryRef.current.delete(mid);
+    setStoppedModels((prev) => {
+      const next = new Set(prev);
+      next.delete(mid);
+      return next;
+    });
   };
 
   // Re-run the last user message for a given model:
@@ -452,7 +518,6 @@ export default function Home() {
   // 2) stream a fresh response
   const handleRegenerate = async (mid: string) => {
     const existing = messages[mid] || [];
-    // Find last user message index.
     let lastUserIdx = -1;
     for (let i = existing.length - 1; i >= 0; i--) {
       if (existing[i].role === "user") {
@@ -463,7 +528,6 @@ export default function Home() {
     if (lastUserIdx === -1) return;
 
     const lastUserMessage = existing[lastUserIdx].content;
-    // Keep messages up to and including the last user message; drop everything after.
     setMessages((prev) => ({
       ...prev,
       [mid]: (prev[mid] || []).slice(0, lastUserIdx + 1),
@@ -480,7 +544,6 @@ export default function Home() {
   }) => {
     const { message, modelIds, options, imageUrls } = params;
 
-    // Pick targets based on current view mode.
     const fallbackIds =
       viewMode === "single" && singleModelId
         ? [singleModelId]
@@ -490,10 +553,13 @@ export default function Home() {
 
     if (effectiveModelIds.length === 0) return;
 
-    // Reset vote for new turn
     setVotedModelId(null);
+    setStoppedModels((prev) => {
+      const next = new Set(prev);
+      effectiveModelIds.forEach((id) => next.delete(id));
+      return next;
+    });
 
-    // 1. Add user message to ALL target panels immediately.
     setMessages((prev) => {
       const next = { ...prev };
       for (const mid of effectiveModelIds) {
@@ -505,9 +571,6 @@ export default function Home() {
       return next;
     });
 
-    // 2. Resolve the conversationId BEFORE firing parallel requests. Otherwise each
-    //    parallel /api/chat/stream call sees no conversationId and the backend creates
-    //    a separate conversation for each model — leaving N-1 orphans in the sidebar.
     let convId = activeConversationId;
     if (!convId) {
       try {
@@ -527,11 +590,8 @@ export default function Home() {
       }
     }
 
-    // 3. Fire N independent HTTP requests in parallel (non-blocking so the
-    //    input is immediately re-enabled for the next turn).
-    effectiveModelIds.forEach((mid) => streamOneModel(mid, message, options, convId, imageUrls));
+    effectiveModelIds.forEach((id) => streamOneModel(id, message, options, convId, imageUrls));
   };
-
   useEffect(() => {
     // When layout increases, auto-fill selected models so UI can show N panels.
     if (loading) return;
@@ -700,6 +760,7 @@ export default function Home() {
                 active={true}
                 hideModelSwitcher={true}
                 isStreaming={streamingModels.has(singleModelView.id)}
+                isStreamingStopped={stoppedModels.has(singleModelView.id)}
                 onActivate={() => setActiveModelId(singleModelView.id)}
                 onClear={() => handleClearChat(singleModelView.id)}
                 onRegenerate={() => handleRegenerate(singleModelView.id)}
@@ -732,6 +793,7 @@ export default function Home() {
                     messages={messages[model.id] || []}
                     active={activeModelId === model.id}
                     isStreaming={streamingModels.has(model.id)}
+                    isStreamingStopped={stoppedModels.has(model.id)}
                     onActivate={() => setActiveModelId(model.id)}
                     onModelChange={(newModelId) =>
                       handlePanelModelChange(idx, newModelId)
@@ -764,6 +826,15 @@ export default function Home() {
                 ? [singleModelId]
                 : activeModels.map((m) => m.id)
             }
+            isStreaming={streamingModels.size > 0}
+            onStop={() => {
+              // Mark all current streaming models as stopped
+              const currentStreaming = Array.from(streamingModels);
+              streamAbortRef.current.forEach((ac) => ac.abort());
+              streamAbortRef.current.clear();
+              setStoppedModels(new Set(currentStreaming));
+              setStreamingModels(new Set());
+            }}
           />
         </div>}
       </div>

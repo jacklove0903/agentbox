@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ChevronLeft,
@@ -37,11 +36,11 @@ interface ModelInfo {
 
 // Layout icons for All-In-One section
 const layoutOptions = [
-  { id: 1, cols: 1, icon: "single" },
-  { id: 2, cols: 2, icon: "double" },
-  { id: 3, cols: 3, icon: "triple" },
-  { id: 4, cols: 4, icon: "quad" },
-  { id: 5, cols: 6, icon: "six" },
+  { id: 1, cols: 1, bars: 1 },
+  { id: 2, cols: 2, bars: 2 },
+  { id: 3, cols: 3, bars: 3 },
+  { id: 4, cols: 4, bars: 4 },
+  { id: 5, cols: 6, bars: 5 },
 ];
 
 const tools = [
@@ -141,8 +140,8 @@ export function Sidebar({
             <div className="text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-100 leading-none">
               AgentBox
             </div>
-            <div className="text-[11px] text-gray-400 leading-none mt-0.5">
-              All‑in‑one chat
+            <div className="text-[11px] text-gray-400 dark:text-gray-500 leading-none mt-0.5">
+              Multi-Chat
             </div>
           </div>
         </div>
@@ -158,32 +157,33 @@ export function Sidebar({
       <ScrollArea className="flex-1 px-3">
         {/* All-In-One Section */}
         <div className={`mb-6 ${collapsed ? "hidden" : ""}`}>
-          <div className="sidebar-item bg-secondary/50 mb-2">
-            <div className="w-5 h-5 rounded bg-neutral-800 flex items-center justify-center">
+          <div className="sidebar-item bg-secondary/50 dark:bg-neutral-800/50 mb-2">
+            <div className="w-5 h-5 rounded bg-neutral-800 dark:bg-neutral-700 flex items-center justify-center">
               <span className="text-white text-xs">A</span>
             </div>
-            <span className="font-medium text-gray-700">All-In-One</span>
+            <span className="font-medium text-gray-700 dark:text-gray-300">Multi-Chat</span>
           </div>
 
           {/* Layout Options */}
-          <div className="flex gap-1.5 px-2">
+          <div className="inline-flex gap-1.5 p-1.5 rounded-2xl bg-gray-50/80 dark:bg-neutral-800/50 border border-gray-200/80 dark:border-neutral-700/70">
             {layoutOptions.map((option) => (
               <button
                 type="button"
                 key={option.id}
                 onClick={() => onLayoutChange(option.cols)}
-                className={`p-2 rounded-md border transition-all ${
+                title={`${option.cols} 窗格布局`}
+                className={`h-8 px-2.5 rounded-xl border transition-all duration-200 ${
                   selectedLayout === option.cols
-                    ? "border-neutral-800 bg-neutral-100"
-                    : "border-gray-200 hover:border-gray-300"
+                    ? "border-gray-300 dark:border-neutral-500 bg-white dark:bg-neutral-700 text-gray-700 dark:text-gray-100"
+                    : "border-gray-200/90 dark:border-neutral-700 bg-white/60 dark:bg-neutral-800/60 text-gray-400 dark:text-gray-500 hover:border-gray-300 dark:hover:border-neutral-600 hover:bg-white dark:hover:bg-neutral-700/70"
                 }`}
               >
-                <div className="flex gap-0.5">
-                  {Array.from({ length: Math.min(option.cols, 4) }).map((_, i) => (
+                <div className="flex items-center justify-center gap-0.5 h-full">
+                  {Array.from({ length: option.bars }).map((_, i) => (
                     <div
                       key={`${option.id}-${i}`}
-                      className={`w-1.5 h-4 rounded-sm ${
-                        selectedLayout === option.cols ? "bg-neutral-800" : "bg-gray-300"
+                      className={`w-1 h-3.5 rounded-full transition-colors ${
+                        selectedLayout === option.cols ? "bg-gray-500 dark:bg-gray-300" : "bg-gray-300 dark:bg-neutral-500"
                       }`}
                     />
                   ))}
@@ -205,12 +205,12 @@ export function Sidebar({
               onClick={() => onToolSelect?.(activeTool === tool.id ? null : tool.id)}
               className={`sidebar-item w-full text-left ${
                 activeTool === tool.id
-                  ? "bg-neutral-100 text-neutral-900"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-gray-100"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
               }`}
             >
               <tool.icon className={`w-5 h-5 ${
-                activeTool === tool.id ? "text-neutral-700" : "text-gray-400"
+                activeTool === tool.id ? "text-neutral-700 dark:text-gray-300" : "text-gray-400 dark:text-gray-500"
               }`} />
               <span>{tool.name}</span>
             </button>
@@ -339,8 +339,8 @@ export function Sidebar({
               onClick={() => onModelToggle(model.id)}
               className={`sidebar-item w-full text-left ${
                 selectedModels.includes(model.id)
-                  ? "bg-neutral-100 text-neutral-900"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-gray-100"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
               }`}
             >
               <img src={model.icon} alt={model.name} className="w-5 h-5 rounded" />
@@ -352,7 +352,7 @@ export function Sidebar({
             <button
               type="button"
               onClick={() => setShowAllModels(true)}
-              className="text-sm text-neutral-600 hover:text-neutral-800 px-3 py-2 transition-colors"
+              className="text-sm text-neutral-600 dark:text-gray-400 hover:text-neutral-800 dark:hover:text-gray-200 px-3 py-2 transition-colors"
             >
               Show All
             </button>
@@ -388,7 +388,7 @@ export function Sidebar({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+              <button type="button" className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
                 <FileText className="w-5 h-5" />
               </button>
             </TooltipTrigger>
@@ -396,7 +396,7 @@ export function Sidebar({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+              <button type="button" className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
                 <MessageSquare className="w-5 h-5" />
               </button>
             </TooltipTrigger>
@@ -404,7 +404,7 @@ export function Sidebar({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+              <button type="button" className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
                 <User className="w-5 h-5" />
               </button>
             </TooltipTrigger>
@@ -412,7 +412,7 @@ export function Sidebar({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" onClick={() => themeCtx.toggle()} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+              <button type="button" onClick={() => themeCtx.toggle()} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
                 {themeCtx.theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
             </TooltipTrigger>
@@ -420,7 +420,7 @@ export function Sidebar({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+              <button type="button" className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
                 <Settings className="w-5 h-5" />
               </button>
             </TooltipTrigger>
