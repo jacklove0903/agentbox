@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useState, useEffect, useCallback } from "react";
+
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -25,13 +27,14 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, readApiErrorMessage } from "@/lib/api";
 
 // Define the ModelInfo interface to match the backend DTO
 interface ModelInfo {
   id: string;
   name: string;
   icon: string;
+  provider?: string;
 }
 
 // Layout icons for All-In-One section
@@ -90,26 +93,104 @@ export function Sidebar({
   onConversationRename,
 }: SidebarProps) {
   const [showAllModels, setShowAllModels] = useState(false);
+  const [showModelManager, setShowModelManager] = useState(false);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [newModelId, setNewModelId] = useState("");
+  const [newModelName, setNewModelName] = useState("");
+  const [newModelProvider, setNewModelProvider] = useState("openrouter");
+  const [newModelApiName, setNewModelApiName] = useState("");
+  const [newModelIcon, setNewModelIcon] = useState("");
+  const [newModelVision, setNewModelVision] = useState(false);
+  const [modelBusy, setModelBusy] = useState(false);
+  const [modelManageError, setModelManageError] = useState("");
   const { user, logout } = useAuth();
   const themeCtx = useTheme();
 
-  // Fetch models from the backend API
-  useEffect(() => {
-    async function fetchModels() {
-      try {
-        const response = await apiFetch("/api/models/getmodels");
-        const data = await response.json();
-        setModels(data);
-      } catch (error) {
-        console.error("Error fetching models:", error);
-      }
+  const fetchModels = useCallback(async () => {
+    try {
+      const response = await apiFetch("/api/models/getmodels");
+      const data = await response.json();
+      setModels(data);
+    } catch (error) {
+      console.error("Error fetching models:", error);
     }
-
-    fetchModels();
   }, []);
+
+  useEffect(() => {
+    fetchModels();
+  }, [fetchModels]);
+
+  const handleCreateModel = useCallback(async () => {
+    if (!user || modelBusy) return;
+    setModelManageError("");
+    setModelBusy(true);
+    try {
+      const res = await apiFetch("/api/models", {
+        method: "POST",
+        body: JSON.stringify({
+          id: newModelId.trim(),
+          name: newModelName.trim(),
+          provider: newModelProvider.trim(),
+          modelName: newModelApiName.trim(),
+          icon: newModelIcon.trim(),
+          supportsVision: newModelVision,
+        }),
+      });
+      if (!res.ok) {
+        setModelManageError(await readApiErrorMessage(res, "新增模型失败"));
+        return;
+      }
+      setNewModelId("");
+      setNewModelName("");
+      setNewModelApiName("");
+      setNewModelIcon("");
+      setNewModelVision(false);
+      await fetchModels();
+    } catch (e) {
+      setModelManageError(e instanceof Error ? e.message : "新增模型失败");
+    } finally {
+      setModelBusy(false);
+    }
+  }, [
+    user,
+    modelBusy,
+    newModelId,
+    newModelName,
+    newModelProvider,
+    newModelApiName,
+    newModelIcon,
+    newModelVision,
+    fetchModels,
+  ]);
+
+  const handleDeleteModel = useCallback(
+    async (id: string) => {
+      if (!user || modelBusy) return;
+      if (!confirm(`确认删除模型 ${id} 吗？`)) return;
+      setModelManageError("");
+      setModelBusy(true);
+      try {
+        const res = await apiFetch(`/api/models/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) {
+          setModelManageError(await readApiErrorMessage(res, "删除模型失败"));
+          return;
+        }
+        if (selectedModels.includes(id)) {
+          onModelToggle(id);
+        }
+        await fetchModels();
+      } catch (e) {
+        setModelManageError(e instanceof Error ? e.message : "删除模型失败");
+      } finally {
+        setModelBusy(false);
+      }
+    },
+    [user, modelBusy, selectedModels, onModelToggle, fetchModels]
+  );
 
   const displayedModels = showAllModels ? models : models.slice(0, 6);
 
@@ -218,7 +299,7 @@ export function Sidebar({
         </div>
 
         {/* Conversations Section */}
-        {!activeTool && (
+        {!activeTool && user && (
           <div className={`mb-6 ${collapsed ? "hidden" : ""}`}>
             <div className="flex items-center justify-between px-3 mb-2">
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -227,7 +308,7 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={onConversationCreate}
-                className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                className="p-1 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
                 title="新建对话"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -329,25 +410,101 @@ export function Sidebar({
 
         {/* Models Section */}
         <div className={collapsed ? "hidden" : ""}>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 mb-2">
-            Models
-          </h3>
-          {displayedModels.map((model) => (
-            <button
-              type="button"
-              key={model.id}
-              onClick={() => onModelToggle(model.id)}
-              className={`sidebar-item w-full text-left ${
-                selectedModels.includes(model.id)
-                  ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-gray-100"
-                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-              }`}
-            >
-              <img src={model.icon} alt={model.name} className="w-5 h-5 rounded" />
-              <span>{model.name}</span>
-            </button>
-          ))}
+          <div className="flex items-center justify-between px-3 mb-2">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Models
+            </h3>
+            {user && (
+              <button
+                type="button"
+                onClick={() => setShowModelManager((v) => !v)}
+                className="text-[11px] text-neutral-500 hover:text-neutral-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                {showModelManager ? "关闭管理" : "管理"}
+              </button>
+            )}
+          </div>
 
+          {showModelManager && user && (
+            <div className="mx-3 mb-3 p-2 rounded-lg border border-gray-200 dark:border-neutral-700 bg-gray-50/70 dark:bg-neutral-800/40 space-y-2">
+              <input
+                value={newModelId}
+                onChange={(e) => setNewModelId(e.target.value)}
+                placeholder="ID (例如 openai/gpt-4o)"
+                className="w-full px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
+              />
+              <input
+                value={newModelName}
+                onChange={(e) => setNewModelName(e.target.value)}
+                placeholder="显示名称"
+                className="w-full px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
+              />
+              <input
+                value={newModelProvider}
+                onChange={(e) => setNewModelProvider(e.target.value)}
+                placeholder="Provider"
+                className="w-full px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
+              />
+              <input
+                value={newModelApiName}
+                onChange={(e) => setNewModelApiName(e.target.value)}
+                placeholder="API 模型名"
+                className="w-full px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
+              />
+              <input
+                value={newModelIcon}
+                onChange={(e) => setNewModelIcon(e.target.value)}
+                placeholder="图标 URL（可空）"
+                className="w-full px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
+              />
+              <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={newModelVision}
+                  onChange={(e) => setNewModelVision(e.target.checked)}
+                />
+                支持视觉输入
+              </label>
+              {modelManageError && (
+                <div className="text-[11px] text-red-500">{modelManageError}</div>
+              )}
+              <button
+                type="button"
+                onClick={handleCreateModel}
+                disabled={modelBusy}
+                className="w-full px-2 py-1.5 text-xs rounded bg-neutral-900 text-white disabled:opacity-60"
+              >
+                {modelBusy ? "处理中..." : "新增模型"}
+              </button>
+            </div>
+          )}
+
+          {displayedModels.map((model) => (
+            <div key={model.id} className="group flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => onModelToggle(model.id)}
+                className={`sidebar-item w-full text-left ${
+                  selectedModels.includes(model.id)
+                    ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-gray-100"
+                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                }`}
+              >
+                <img src={model.icon} alt={model.name} className="w-5 h-5 rounded" />
+                <span>{model.name}</span>
+              </button>
+              {showModelManager && user && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteModel(model.id)}
+                  className="p-1 text-gray-400 hover:text-red-500"
+                  title="删除模型"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
           {!showAllModels && models.length > 6 && (
             <button
               type="button"
@@ -367,19 +524,31 @@ export function Sidebar({
             {user?.username?.charAt(0).toUpperCase() ?? "?"}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{user?.username ?? "未登录"}</div>
+            <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{user?.username ?? "游客模式"}</div>
             {user?.email && (
               <div className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{user.email}</div>
             )}
+            {!user && (
+              <div className="text-[11px] text-gray-400 dark:text-gray-500 truncate">试用次数用完后需登录</div>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={logout}
-            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-            title="退出登录"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          {user ? (
+            <button
+              type="button"
+              onClick={logout}
+              className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              title="退出登录"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              className="px-2.5 py-1 text-xs rounded-md bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
+            >
+              登录
+            </Link>
+          )}
         </div>
       </div>
 

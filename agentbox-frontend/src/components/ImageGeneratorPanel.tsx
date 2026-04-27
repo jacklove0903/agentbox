@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Loader2, Download, Trash2 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, readApiErrorMessage } from "@/lib/api";
 
 interface ImageRecord {
   id: number;
@@ -71,9 +71,14 @@ export function ImageGeneratorPanel() {
         body: JSON.stringify({ prompt: prompt.trim(), model, size }),
       });
 
+      if (!res.ok) {
+        setError(await readApiErrorMessage(res, "生成失败"));
+        return;
+      }
+
       const data = await res.json();
-      if (!res.ok || data.error) {
-        setError(data.error || `请求失败: ${res.status}`);
+      if (data.error) {
+        setError(data.error || "生成失败");
         return;
       }
 

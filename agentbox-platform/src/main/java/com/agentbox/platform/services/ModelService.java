@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,9 @@ public class ModelService {
 
     @Autowired
     private ModelRepository modelMapper;
+
+    @Autowired
+    private ChatService chatService;
 
     public List<ModelInfo> getAvailableModels() {
         List<Model> models = modelMapper.selectList(
@@ -40,6 +44,60 @@ public class ModelService {
                         LinkedHashMap::new,
                         Collectors.toList()
                 ));
+    }
+
+    public ModelInfo createModel(String id,
+                                 String name,
+                                 String icon,
+                                 String provider,
+                                 String modelName,
+                                 Boolean supportsVision) {
+        String normalizedId = requireText(id, "id");
+        String normalizedName = requireText(name, "name");
+        String normalizedProvider = requireText(provider, "provider");
+        String normalizedModelName = requireText(modelName, "modelName");
+
+        Model existing = modelMapper.selectById(normalizedId);
+        if (existing != null) {
+            throw new IllegalArgumentException("Model already exists: " + normalizedId);
+        }
+
+        List<Model> all = modelMapper.selectList(new LambdaQueryWrapper<Model>());
+        int nextSort = all.stream()
+                .map(Model::getSortOrder)
+                .filter(v -> v != null)
+                .max(Comparator.naturalOrder())
+                .orElse(0) + 1;
+
+        Model model = new Model();
+        model.setId(normalizedId);
+        model.setName(normalizedName);
+        model.setIcon((icon == null || icon.isBlank()) ? "" : icon.trim());
+        model.setProvider(normalizedProvider);
+        model.setModelName(normalizedModelName);
+        model.setEnabled(true);
+        model.setSortOrder(nextSort);
+        model.setSupportsVision(Boolean.TRUE.equals(supportsVision));
+
+        modelMapper.insert(model);
+        chatService.clearModelNameCache();
+        return toModelInfo(model);
+    }
+
+    public void deleteModel(String id) {
+        String normalizedId = requireText(id, "id");
+        int affected = modelMapper.deleteById(normalizedId);
+        if (affected == 0) {
+            throw new IllegalArgumentException("Model not found: " + normalizedId);
+        }
+        chatService.clearModelNameCache();
+    }
+
+    private String requireText(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(field + " is required");
+        }
+        return value.trim();
     }
 
     private ModelInfo toModelInfo(Model model) {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ChatInput } from "@/components/ChatInput";
 import { WelcomeDialog } from "@/components/WelcomeDialog";
@@ -11,7 +10,7 @@ import { WebSummarizerPanel } from "@/components/WebSummarizerPanel";
 import { ImageGeneratorPanel } from "@/components/ImageGeneratorPanel";
 import { ModelLeaderboard } from "@/components/ModelLeaderboard";
 import { useAuth } from "@/lib/auth";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, readApiErrorMessage } from "@/lib/api";
 
 interface ModelInfo {
   id: string;
@@ -31,16 +30,18 @@ interface Message {
   isError?: boolean;
 }
 
-export default function Home() {
-  const router = useRouter();
-  const { token, initializing } = useAuth();
+interface TrialStatus {
+  authenticated: boolean;
+  remaining?: {
+    chat?: number;
+    summarize?: number;
+    image?: number;
+    enhance?: number;
+  };
+}
 
-  // Redirect unauthenticated visitors to /login once auth state is resolved.
-  useEffect(() => {
-    if (!initializing && !token) {
-      router.replace("/login");
-    }
-  }, [initializing, token, router]);
+export default function Home() {
+  const { token, initializing } = useAuth();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedLayout, setSelectedLayout] = useState(1);
@@ -56,6 +57,7 @@ export default function Home() {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [votedModelId, setVotedModelId] = useState<string | null>(null);
+  const [trialStatus, setTrialStatus] = useState<TrialStatus | null>(null);
   // View mode: 'all-in-one' = multi-panel grid; 'single' = one standalone chat for singleModelId.
   const [viewMode, setViewMode] = useState<"all-in-one" | "single">("all-in-one");
   const [singleModelId, setSingleModelId] = useState<string | null>(null);
@@ -71,6 +73,7 @@ export default function Home() {
 
   // Fetch persisted history for a model and merge into state (only if not loaded yet).
   const loadHistory = useCallback(async (mid: string) => {
+    if (!token) return;
     if (!mid) return;
     if (loadedHistoryRef.current.has(mid)) return;
     loadedHistoryRef.current.add(mid);
@@ -100,7 +103,7 @@ export default function Home() {
       // Allow retry on next trigger.
       loadedHistoryRef.current.delete(mid);
     }
-  }, [activeConversationId]);
+  }, [activeConversationId, token]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +134,7 @@ export default function Home() {
 
   // Fetch user's conversations
   const fetchConversations = useCallback(async () => {
+    if (!token) return;
     try {
       const res = await apiFetch("/api/conversations");
       if (!res.ok) return;
@@ -139,15 +143,35 @@ export default function Home() {
     } catch (e) {
       console.error("Failed to load conversations:", e);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
     fetchConversations();
   }, [token, fetchConversations]);
 
+  const refreshTrialStatus = useCallback(async () => {
+    if (token) {
+      setTrialStatus(null);
+      return;
+    }
+    try {
+      const res = await apiFetch("/api/trial/status");
+      if (!res.ok) return;
+      const data = (await res.json()) as TrialStatus;
+      setTrialStatus(data);
+    } catch {
+      // ignore status fetch failures
+    }
+  }, [token]);
+
+  useEffect(() => {
+    refreshTrialStatus();
+  }, [refreshTrialStatus]);
+
   // Conversation management handlers
   const handleConversationCreate = async () => {
+    if (!token) return;
     try {
       const res = await apiFetch("/api/conversations", {
         method: "POST",
@@ -163,6 +187,7 @@ export default function Home() {
   };
 
   const handleConversationDelete = async (id: string) => {
+    if (!token) return;
     try {
       await apiFetch(`/api/conversations/${id}`, { method: "DELETE" });
       setConversations((prev) => prev.filter((c) => c.id !== id));
@@ -177,6 +202,7 @@ export default function Home() {
   };
 
   const handleConversationRename = async (id: string, title: string) => {
+    if (!token) return;
     try {
       await apiFetch(`/api/conversations/${id}/title`, {
         method: "PUT",
@@ -206,7 +232,7 @@ export default function Home() {
     setViewMode("single");
     setSingleModelId(modelId);
     setActiveModelId(modelId);
-    loadHistory(modelId);
+    if (token) loadHistory(modelId);
   };
 
   // Click a layout button → enter/stay in all-in-one view and update layout.
@@ -240,11 +266,12 @@ export default function Home() {
           options,
           conversationId: conversationId || undefined,
           imageUrls: imageUrls && imageUrls.length > 0 ? imageUrls : undefined,
+          ephemeral: !token,
         }),
         signal: ac.signal,
       });
 
-      if (!res.ok) throw new Error(`chat request failed: ${res.status}`);
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, "生成失败"));
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No response body");
 
@@ -283,18 +310,22 @@ export default function Home() {
           }
           // Handle conversation meta event (auto-created conversationId)
           if (parsed.type === "conversation" && parsed.conversationId) {
-            setActiveConversationId((prev) => prev || parsed.conversationId);
-            fetchConversations();
+            if (token) {
+              setActiveConversationId((prev) => prev || parsed.conversationId);
+              fetchConversations();
+            }
             continue;
           }
 
           // Handle smart title event
           if (parsed.type === "title" && parsed.conversationId && parsed.title) {
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === parsed.conversationId ? { ...c, title: parsed.title } : c
-              )
-            );
+            if (token) {
+              setConversations((prev) =>
+                prev.map((c) =>
+                  c.id === parsed.conversationId ? { ...c, title: parsed.title } : c
+                )
+              );
+            }
             continue;
           }
 
@@ -455,6 +486,7 @@ export default function Home() {
         next.delete(mid);
         return next;
       });
+      if (!token) refreshTrialStatus();
     }
   };
 
@@ -475,6 +507,7 @@ export default function Home() {
   // the persisted history.
   // Vote for the best model response
   const handleVote = async (modelId: string) => {
+    if (!token) return;
     if (votedModelId) return;
     setVotedModelId(modelId);
 
@@ -572,7 +605,7 @@ export default function Home() {
     });
 
     let convId = activeConversationId;
-    if (!convId) {
+    if (!convId && token) {
       try {
         const truncated = message.length > 30 ? message.slice(0, 30) + "..." : message;
         const createRes = await apiFetch("/api/conversations", {
@@ -656,6 +689,7 @@ export default function Home() {
 
   // Auto-load persisted history whenever a new model becomes visible in any panel.
   useEffect(() => {
+    if (!token) return;
     if (loading) return;
     const targets =
       viewMode === "single" && singleModelId
@@ -664,7 +698,7 @@ export default function Home() {
     for (const mid of targets) {
       if (mid) loadHistory(mid);
     }
-  }, [viewMode, singleModelId, panelModelIds, loading, loadHistory]);
+  }, [viewMode, singleModelId, panelModelIds, loading, loadHistory, token]);
 
   const handlePanelModelChange = (panelIndex: number, modelId: string) => {
     setPanelModelIds((prev) => {
@@ -676,7 +710,7 @@ export default function Home() {
 
     setSelectedModels((prev) => (prev.includes(modelId) ? prev : [...prev, modelId]));
     setActiveModelId(modelId);
-    loadHistory(modelId);
+    if (token) loadHistory(modelId);
   };
 
   const getGridCols = () => {
@@ -689,7 +723,7 @@ export default function Home() {
 
   // Gate the whole app behind auth. Returning early before hooks above would
   // violate React rules, so we render a lightweight placeholder here instead.
-  if (initializing || !token) {
+  if (initializing) {
     return (
       <div className="h-screen flex items-center justify-center text-neutral-500">
         <p className="text-sm">加载中…</p>
@@ -724,6 +758,14 @@ export default function Home() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 main-gradient">
+        {!token && trialStatus?.remaining && (
+          <div className="px-4 pt-3">
+            <div className="rounded-xl border border-amber-200/80 bg-amber-50/80 dark:bg-amber-900/20 dark:border-amber-700/40 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+              游客试用剩余：聊天 {trialStatus.remaining.chat ?? 0} 次 · 网页总结 {trialStatus.remaining.summarize ?? 0} 次 · 图片生成 {trialStatus.remaining.image ?? 0} 次
+            </div>
+          </div>
+        )}
+
         {/* Tool views */}
         {activeTool === "translator" ? (
           <div className="flex-1 min-h-0 overflow-y-auto">

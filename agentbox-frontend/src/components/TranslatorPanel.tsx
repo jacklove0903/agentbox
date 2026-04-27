@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ArrowRightLeft, Copy, Check, Loader2 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, readApiErrorMessage } from "@/lib/api";
 
 const DEBOUNCE_MS = 500;
 
@@ -100,7 +100,7 @@ export function TranslatorPanel() {
         signal: controller.signal,
       });
 
-      if (!res.ok) throw new Error(`翻译请求失败: ${res.status}`);
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, "翻译失败"));
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No response body");
 

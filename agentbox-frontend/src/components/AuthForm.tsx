@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
@@ -10,7 +10,7 @@ type Mode = "login" | "register";
 
 export function AuthForm({ mode }: { mode: Mode }) {
   const router = useRouter();
-  const { login, register } = useAuth();
+  const { login, register, token, initializing } = useAuth();
 
   const [identifier, setIdentifier] = useState(""); // login only
   const [username, setUsername] = useState("");
@@ -43,6 +43,12 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const footerHref = mode === "login" ? "/register" : "/login";
   const footerLabel = mode === "login" ? "去注册" : "去登录";
 
+  useEffect(() => {
+    if (!initializing && token) {
+      router.replace("/");
+    }
+  }, [initializing, token, router]);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-fuchsia-50 px-4">
       <div className="w-full max-w-sm bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-xl p-8">
@@ -53,7 +59,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
           <h1 className="mt-3 text-xl font-semibold tracking-tight text-gray-900">
             AgentBox {title}
           </h1>
-          <p className="text-xs text-gray-400 mt-1">All-in-one chat</p>
+          <p className="text-xs text-gray-400 mt-1">Multi-Chat</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">

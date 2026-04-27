@@ -13,6 +13,8 @@ import {
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
 const TOKEN_KEY = "agentbox_token";
 const USER_KEY = "agentbox_user";
+const GUEST_KEY = "agentbox_guest_id";
+export const AUTH_CLEARED_EVENT = "agentbox-auth-cleared";
 
 interface AuthUser {
   username: string;
@@ -38,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Hydrate from localStorage on mount.
   useEffect(() => {
     try {
+      ensureGuestId();
       const storedToken = localStorage.getItem(TOKEN_KEY);
       const storedUser = localStorage.getItem(USER_KEY);
       if (storedToken && storedUser) {
@@ -49,6 +52,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setInitializing(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const syncFromStorage = () => {
+      try {
+        const storedToken = localStorage.getItem(TOKEN_KEY);
+        const storedUser = localStorage.getItem(USER_KEY);
+        if (!storedToken || !storedUser) {
+          setToken(null);
+          setUser(null);
+          return;
+        }
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser) as AuthUser);
+      } catch {
+        setToken(null);
+        setUser(null);
+      }
+    };
+
+    window.addEventListener("storage", syncFromStorage);
+    window.addEventListener(AUTH_CLEARED_EVENT, syncFromStorage);
+    return () => {
+      window.removeEventListener("storage", syncFromStorage);
+      window.removeEventListener(AUTH_CLEARED_EVENT, syncFromStorage);
+    };
   }, []);
 
   const persistAuth = (tok: string, u: AuthUser) => {
@@ -114,4 +143,21 @@ export function useAuth() {
 export function readToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(TOKEN_KEY);
+}
+
+export function readGuestId(): string | null {
+  if (typeof window === "undefined") return null;
+  return ensureGuestId();
+}
+
+function ensureGuestId(): string {
+  const existing = localStorage.getItem(GUEST_KEY);
+  if (existing && existing.length >= 8) return existing;
+
+  const generated =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? `g-${crypto.randomUUID()}`
+      : `g-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  localStorage.setItem(GUEST_KEY, generated);
+  return generated;
 }

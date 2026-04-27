@@ -28,6 +28,8 @@ export function ChatInput({ onSendMessage, modelIds, isStreaming, onStop }: Chat
   const [error, setError] = useState<string | null>(null);
   const [attachedImages, setAttachedImages] = useState<{ file: File; preview: string }[]>([]);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const wasStreamingRef = useRef(false);
 
   const uploadImages = async (): Promise<string[]> => {
     if (attachedImages.length === 0) return [];
@@ -50,6 +52,11 @@ export function ChatInput({ onSendMessage, modelIds, isStreaming, onStop }: Chat
       urls.push(data.url);
     }
     return urls;
+  };
+
+  const handleStopClick = () => {
+    onStop?.();
+    requestAnimationFrame(() => textAreaRef.current?.focus());
   };
 
   const handleSubmit = async () => {
@@ -80,6 +87,7 @@ export function ChatInput({ onSendMessage, modelIds, isStreaming, onStop }: Chat
       setError('发送失败，请重试');
     } finally {
       setIsLoading(false);
+      requestAnimationFrame(() => textAreaRef.current?.focus());
     }
   };
 
@@ -195,6 +203,14 @@ export function ChatInput({ onSendMessage, modelIds, isStreaming, onStop }: Chat
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
 
+  useEffect(() => {
+    const streaming = Boolean(isStreaming);
+    if (wasStreamingRef.current && !streaming && !isLoading) {
+      requestAnimationFrame(() => textAreaRef.current?.focus());
+    }
+    wasStreamingRef.current = streaming;
+  }, [isStreaming, isLoading]);
+
   const handleToggleFullscreen = async () => {
     try {
       if (document.fullscreenElement) {
@@ -228,6 +244,7 @@ export function ChatInput({ onSendMessage, modelIds, isStreaming, onStop }: Chat
       <div className="flex items-end gap-3">
         <div className="flex-1">
           <textarea
+            ref={textAreaRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -405,7 +422,7 @@ export function ChatInput({ onSendMessage, modelIds, isStreaming, onStop }: Chat
                 {isStreaming ? (
                   <button
                     type="button"
-                    onClick={onStop}
+                    onClick={handleStopClick}
                     className="p-2 rounded-lg bg-neutral-800 text-white hover:bg-red-600 transition-all"
                   >
                     <Square className="w-4 h-4" />

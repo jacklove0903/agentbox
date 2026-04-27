@@ -46,6 +46,9 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
                         // Public endpoints
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        .requestMatchers("/api/trial/status").permitAll()
+                        .requestMatchers("/api/chat/stream", "/api/chat/enhance").permitAll()
+                        .requestMatchers("/api/tools/summarize", "/api/tools/image-gen", "/api/tools/image-gen/history").permitAll()
                         // Model list is public (used by login-less landing) — change to authenticated if needed.
                         .requestMatchers("/api/models/**").permitAll()
                         .requestMatchers("/api/files/**").permitAll()

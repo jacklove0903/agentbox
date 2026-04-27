@@ -5,7 +5,7 @@ import { Globe, Loader2, Copy, Check, RotateCcw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CodeBlock } from "@/components/CodeBlock";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, readApiErrorMessage } from "@/lib/api";
 
 export function WebSummarizerPanel() {
   const [url, setUrl] = useState("");
@@ -37,7 +37,7 @@ export function WebSummarizerPanel() {
         signal: controller.signal,
       });
 
-      if (!res.ok) throw new Error(`请求失败: ${res.status}`);
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, "总结失败"));
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No response body");
 
