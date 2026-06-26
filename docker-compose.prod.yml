@@ -48,7 +48,7 @@ services:
     build:
       context: ./agentbox-frontend
       args:
-        NEXT_PUBLIC_API_BASE: http://118.31.71.208
+        NEXT_PUBLIC_API_BASE: http://localhost
     container_name: agentbox-frontend
     restart: always
     depends_on:

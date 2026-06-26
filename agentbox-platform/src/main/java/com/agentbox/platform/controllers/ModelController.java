@@ -38,6 +38,11 @@ public class ModelController {
         return ResponseEntity.ok(modelMap);
     }
 
+    @GetMapping("/available")
+    public ResponseEntity<Map<String, List<com.agentbox.platform.dto.AvailableModel>>> getAvailableFromSiliconFlow() {
+        return ResponseEntity.ok(modelService.getSiliconFlowModels());
+    }
+
     @PostMapping
     public ResponseEntity<?> createModel(@RequestBody Map<String, Object> body, Authentication auth) {
         if (!isAuthenticated(auth)) {

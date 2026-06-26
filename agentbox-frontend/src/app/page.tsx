@@ -30,16 +30,6 @@ interface Message {
   isError?: boolean;
 }
 
-interface TrialStatus {
-  authenticated: boolean;
-  remaining?: {
-    chat?: number;
-    summarize?: number;
-    image?: number;
-    enhance?: number;
-  };
-}
-
 export default function Home() {
   const { token, initializing } = useAuth();
 
@@ -57,7 +47,6 @@ export default function Home() {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [votedModelId, setVotedModelId] = useState<string | null>(null);
-  const [trialStatus, setTrialStatus] = useState<TrialStatus | null>(null);
   // View mode: 'all-in-one' = multi-panel grid; 'single' = one standalone chat for singleModelId.
   const [viewMode, setViewMode] = useState<"all-in-one" | "single">("all-in-one");
   const [singleModelId, setSingleModelId] = useState<string | null>(null);
@@ -70,6 +59,17 @@ export default function Home() {
   
   // Track which models were stopped by user (to handle thinking display correctly)
   const [stoppedModels, setStoppedModels] = useState<Set<string>>(new Set());
+
+  // Refresh allModels — called when SettingsDialog adds/deletes models
+  const refreshAllModels = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/models/getmodels");
+      const data = (await res.json()) as ModelInfo[];
+      setAllModels(data);
+    } catch (error) {
+      console.error("Failed to refresh models:", error);
+    }
+  }, []);
 
   // Fetch persisted history for a model and merge into state (only if not loaded yet).
   const loadHistory = useCallback(async (mid: string) => {
@@ -149,25 +149,6 @@ export default function Home() {
     if (!token) return;
     fetchConversations();
   }, [token, fetchConversations]);
-
-  const refreshTrialStatus = useCallback(async () => {
-    if (token) {
-      setTrialStatus(null);
-      return;
-    }
-    try {
-      const res = await apiFetch("/api/trial/status");
-      if (!res.ok) return;
-      const data = (await res.json()) as TrialStatus;
-      setTrialStatus(data);
-    } catch {
-      // ignore status fetch failures
-    }
-  }, [token]);
-
-  useEffect(() => {
-    refreshTrialStatus();
-  }, [refreshTrialStatus]);
 
   // Conversation management handlers
   const handleConversationCreate = async () => {
@@ -266,7 +247,6 @@ export default function Home() {
           options,
           conversationId: conversationId || undefined,
           imageUrls: imageUrls && imageUrls.length > 0 ? imageUrls : undefined,
-          ephemeral: !token,
         }),
         signal: ac.signal,
       });
@@ -486,7 +466,6 @@ export default function Home() {
         next.delete(mid);
         return next;
       });
-      if (!token) refreshTrialStatus();
     }
   };
 
@@ -754,18 +733,11 @@ export default function Home() {
         onConversationCreate={handleConversationCreate}
         onConversationDelete={handleConversationDelete}
         onConversationRename={handleConversationRename}
+        onGlobalModelsChanged={refreshAllModels}
       />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 main-gradient">
-        {!token && trialStatus?.remaining && (
-          <div className="px-4 pt-3">
-            <div className="rounded-xl border border-amber-200/80 bg-amber-50/80 dark:bg-amber-900/20 dark:border-amber-700/40 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
-              游客试用剩余：聊天 {trialStatus.remaining.chat ?? 0} 次 · 网页总结 {trialStatus.remaining.summarize ?? 0} 次 · 图片生成 {trialStatus.remaining.image ?? 0} 次
-            </div>
-          </div>
-        )}
-
         {/* Tool views */}
         {activeTool === "translator" ? (
           <div className="flex-1 min-h-0 overflow-y-auto">

@@ -27,7 +27,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
-import { apiFetch, readApiErrorMessage } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
+import { SettingsDialog } from "@/components/SettingsDialog";
 
 // Define the ModelInfo interface to match the backend DTO
 interface ModelInfo {
@@ -74,6 +75,7 @@ interface SidebarProps {
   onConversationCreate: () => void;
   onConversationDelete: (id: string) => void;
   onConversationRename: (id: string, title: string) => void;
+  onGlobalModelsChanged?: () => void;
 }
 
 export function Sidebar({
@@ -91,20 +93,13 @@ export function Sidebar({
   onConversationCreate,
   onConversationDelete,
   onConversationRename,
+  onGlobalModelsChanged,
 }: SidebarProps) {
   const [showAllModels, setShowAllModels] = useState(false);
-  const [showModelManager, setShowModelManager] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const [newModelId, setNewModelId] = useState("");
-  const [newModelName, setNewModelName] = useState("");
-  const [newModelProvider, setNewModelProvider] = useState("openrouter");
-  const [newModelApiName, setNewModelApiName] = useState("");
-  const [newModelIcon, setNewModelIcon] = useState("");
-  const [newModelVision, setNewModelVision] = useState(false);
-  const [modelBusy, setModelBusy] = useState(false);
-  const [modelManageError, setModelManageError] = useState("");
   const { user, logout } = useAuth();
   const themeCtx = useTheme();
 
@@ -122,75 +117,10 @@ export function Sidebar({
     fetchModels();
   }, [fetchModels]);
 
-  const handleCreateModel = useCallback(async () => {
-    if (!user || modelBusy) return;
-    setModelManageError("");
-    setModelBusy(true);
-    try {
-      const res = await apiFetch("/api/models", {
-        method: "POST",
-        body: JSON.stringify({
-          id: newModelId.trim(),
-          name: newModelName.trim(),
-          provider: newModelProvider.trim(),
-          modelName: newModelApiName.trim(),
-          icon: newModelIcon.trim(),
-          supportsVision: newModelVision,
-        }),
-      });
-      if (!res.ok) {
-        setModelManageError(await readApiErrorMessage(res, "新增模型失败"));
-        return;
-      }
-      setNewModelId("");
-      setNewModelName("");
-      setNewModelApiName("");
-      setNewModelIcon("");
-      setNewModelVision(false);
-      await fetchModels();
-    } catch (e) {
-      setModelManageError(e instanceof Error ? e.message : "新增模型失败");
-    } finally {
-      setModelBusy(false);
-    }
-  }, [
-    user,
-    modelBusy,
-    newModelId,
-    newModelName,
-    newModelProvider,
-    newModelApiName,
-    newModelIcon,
-    newModelVision,
-    fetchModels,
-  ]);
-
-  const handleDeleteModel = useCallback(
-    async (id: string) => {
-      if (!user || modelBusy) return;
-      if (!confirm(`确认删除模型 ${id} 吗？`)) return;
-      setModelManageError("");
-      setModelBusy(true);
-      try {
-        const res = await apiFetch(`/api/models/${encodeURIComponent(id)}`, {
-          method: "DELETE",
-        });
-        if (!res.ok) {
-          setModelManageError(await readApiErrorMessage(res, "删除模型失败"));
-          return;
-        }
-        if (selectedModels.includes(id)) {
-          onModelToggle(id);
-        }
-        await fetchModels();
-      } catch (e) {
-        setModelManageError(e instanceof Error ? e.message : "删除模型失败");
-      } finally {
-        setModelBusy(false);
-      }
-    },
-    [user, modelBusy, selectedModels, onModelToggle, fetchModels]
-  );
+  const handleModelsChanged = useCallback(() => {
+    fetchModels();
+    onGlobalModelsChanged?.();
+  }, [fetchModels, onGlobalModelsChanged]);
 
   const displayedModels = showAllModels ? models : models.slice(0, 6);
 
@@ -414,70 +344,7 @@ export function Sidebar({
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               Models
             </h3>
-            {user && (
-              <button
-                type="button"
-                onClick={() => setShowModelManager((v) => !v)}
-                className="text-[11px] text-neutral-500 hover:text-neutral-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                {showModelManager ? "关闭管理" : "管理"}
-              </button>
-            )}
           </div>
-
-          {showModelManager && user && (
-            <div className="mx-3 mb-3 p-2 rounded-lg border border-gray-200 dark:border-neutral-700 bg-gray-50/70 dark:bg-neutral-800/40 space-y-2">
-              <input
-                value={newModelId}
-                onChange={(e) => setNewModelId(e.target.value)}
-                placeholder="ID (例如 openai/gpt-4o)"
-                className="w-full px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
-              />
-              <input
-                value={newModelName}
-                onChange={(e) => setNewModelName(e.target.value)}
-                placeholder="显示名称"
-                className="w-full px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
-              />
-              <input
-                value={newModelProvider}
-                onChange={(e) => setNewModelProvider(e.target.value)}
-                placeholder="Provider"
-                className="w-full px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
-              />
-              <input
-                value={newModelApiName}
-                onChange={(e) => setNewModelApiName(e.target.value)}
-                placeholder="API 模型名"
-                className="w-full px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
-              />
-              <input
-                value={newModelIcon}
-                onChange={(e) => setNewModelIcon(e.target.value)}
-                placeholder="图标 URL（可空）"
-                className="w-full px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
-              />
-              <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={newModelVision}
-                  onChange={(e) => setNewModelVision(e.target.checked)}
-                />
-                支持视觉输入
-              </label>
-              {modelManageError && (
-                <div className="text-[11px] text-red-500">{modelManageError}</div>
-              )}
-              <button
-                type="button"
-                onClick={handleCreateModel}
-                disabled={modelBusy}
-                className="w-full px-2 py-1.5 text-xs rounded bg-neutral-900 text-white disabled:opacity-60"
-              >
-                {modelBusy ? "处理中..." : "新增模型"}
-              </button>
-            </div>
-          )}
 
           {displayedModels.map((model) => (
             <div key={model.id} className="group flex items-center gap-1">
@@ -493,16 +360,6 @@ export function Sidebar({
                 <img src={model.icon} alt={model.name} className="w-5 h-5 rounded" />
                 <span>{model.name}</span>
               </button>
-              {showModelManager && user && (
-                <button
-                  type="button"
-                  onClick={() => handleDeleteModel(model.id)}
-                  className="p-1 text-gray-400 hover:text-red-500"
-                  title="删除模型"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              )}
             </div>
           ))}
           {!showAllModels && models.length > 6 && (
@@ -589,14 +446,20 @@ export function Sidebar({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+              <button type="button" onClick={() => setShowSettings(true)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
                 <Settings className="w-5 h-5" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>Settings</TooltipContent>
+            <TooltipContent>设置</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
+
+      <SettingsDialog
+        open={showSettings}
+        onOpenChange={setShowSettings}
+        onModelsChanged={handleModelsChanged}
+      />
     </div>
   );
 }

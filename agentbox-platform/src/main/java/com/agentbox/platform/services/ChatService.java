@@ -649,7 +649,7 @@ public class ChatService {
 
     // ======================== Smart Title Generation ========================
 
-    private static final String TITLE_MODEL = "Qwen/Qwen3-8B";
+    private static final String TITLE_MODEL = "Qwen/Qwen2.5-7B-Instruct";
     private static final String TITLE_PROMPT =
             "根据以下用户消息，生成一个简洁的中文对话标题（不超过15个字，不要引号，不要标点，直接输出标题）：\n\n";
 
@@ -659,7 +659,7 @@ public class ChatService {
                 try {
                     OpenAiChatOptions opts = OpenAiChatOptions.builder().model(TITLE_MODEL).build();
                     List<org.springframework.ai.chat.messages.Message> msgs = List.of(
-                            new SystemMessage("你是一个标题生成助手。只输出标题，不要任何其他内容。/no_think"),
+                            new SystemMessage("你是一个标题生成助手。只输出标题，不要任何其他内容。"),
                             new UserMessage(TITLE_PROMPT + userMessage));
                     ChatResponse resp = chatModel.call(new Prompt(msgs, opts));
                     String title = resp.getResult().getOutput().getText();
@@ -701,19 +701,24 @@ public class ChatService {
 
     // ======================== AI Enhance ========================
 
-    private static final String ENHANCE_MODEL = "Qwen/Qwen3-8B";
+    private static final String ENHANCE_MODEL = "Qwen/Qwen2.5-7B-Instruct";
     private static final String ENHANCE_SYSTEM_PROMPT =
             "你是一个提示词优化专家。用户会给你一段提示词，请优化它使其更清晰、更具体、更容易让AI理解。" +
-            "直接输出优化后的提示词，不要解释。保持原文语言（中文输入就输出中文，英文输入就输出英文）。/no_think";
+            "直接输出优化后的提示词，不要解释。保持原文语言（中文输入就输出中文，英文输入就输出英文）。";
 
     public String enhancePrompt(String prompt) {
         OpenAiChatOptions opts = OpenAiChatOptions.builder().model(ENHANCE_MODEL).build();
         List<org.springframework.ai.chat.messages.Message> msgs = List.of(
                 new SystemMessage(ENHANCE_SYSTEM_PROMPT),
                 new UserMessage(prompt));
-        ChatResponse resp = chatModel.call(new Prompt(msgs, opts));
-        String enhanced = resp.getResult().getOutput().getText();
-        return enhanced != null ? enhanced.trim() : prompt;
+        try {
+            ChatResponse resp = chatModel.call(new Prompt(msgs, opts));
+            String enhanced = resp.getResult().getOutput().getText();
+            return enhanced != null ? enhanced.trim() : prompt;
+        } catch (Exception e) {
+            // Fallback: return original prompt when AI enhance is unavailable
+            return prompt;
+        }
     }
 
     public ChatHistoryResponse history(ChatHistoryRequest request) {

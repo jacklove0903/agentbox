@@ -1,4 +1,4 @@
-import { API_BASE, AUTH_CLEARED_EVENT, readGuestId, readToken } from "./auth";
+import { API_BASE, AUTH_CLEARED_EVENT, readToken } from "./auth";
 
 type HeaderInit = HeadersInit | undefined;
 
@@ -8,9 +8,6 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   const headers = new Headers(init.headers as HeaderInit);
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
-  } else {
-    const guestId = readGuestId();
-    if (guestId) headers.set("X-Guest-Id", guestId);
   }
   // Do NOT force a Content-Type for FormData — the browser must set
   // "multipart/form-data; boundary=..." itself, otherwise the request body is unparseable.
@@ -28,21 +25,29 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
       localStorage.removeItem("agentbox_token");
       localStorage.removeItem("agentbox_user");
       window.dispatchEvent(new Event(AUTH_CLEARED_EVENT));
+      // Redirect to login — avoid multiple redirects if concurrent requests all fail.
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
     }
   }
   return res;
 }
 
 export async function readApiErrorMessage(res: Response, fallback = "请求失败") {
+  // Friendly messages for common HTTP errors.
+  if (res.status === 401 || res.status === 403) {
+    return "登录已过期，请重新登录";
+  }
   try {
     const data = (await res.clone().json()) as { error?: string; message?: string };
-    return data.error || data.message || `${fallback}: ${res.status}`;
+    return data.error || data.message || `${fallback}（${res.status}）`;
   } catch {
     try {
       const text = (await res.clone().text()).trim();
-      return text || `${fallback}: ${res.status}`;
+      return text || `${fallback}（${res.status}）`;
     } catch {
-      return `${fallback}: ${res.status}`;
+      return `${fallback}（${res.status}）`;
     }
   }
 }
