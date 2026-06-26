@@ -51,8 +51,9 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<"all-in-one" | "single">("all-in-one");
   const [singleModelId, setSingleModelId] = useState<string | null>(null);
 
-  // Tracks which modelIds have already had history fetched (avoid duplicate loads).
-  const loadedHistoryRef = useRef<Set<string>>(new Set());
+  // Tracks which modelIds have already had history fetched for current conversation.
+  // Maps modelId → conversationId (or "null" string for no conversation).
+  const loadedHistoryRef = useRef<Map<string, string>>(new Map());
 
   // AbortControllers for active streams – keyed by modelId so we can cancel individually.
   const streamAbortRef = useRef<Map<string, AbortController>>(new Map());
@@ -75,8 +76,9 @@ export default function Home() {
   const loadHistory = useCallback(async (mid: string) => {
     if (!token) return;
     if (!mid) return;
-    if (loadedHistoryRef.current.has(mid)) return;
-    loadedHistoryRef.current.add(mid);
+    const convKey = activeConversationId || "_none_";
+    if (loadedHistoryRef.current.get(mid) === convKey) return;
+    loadedHistoryRef.current.set(mid, convKey);
 
     try {
       const res = await apiFetch("/api/chat/history", {
@@ -93,9 +95,9 @@ export default function Home() {
         imageUrls: m.imageUrls,
       }));
 
-      // Only populate if the user hasn't already started chatting in this tab.
       setMessages((prev) => {
-        if (prev[mid] && prev[mid].length > 0) return prev;
+        // Only apply if we're still in the same conversation context
+        if (loadedHistoryRef.current.get(mid) !== convKey) return prev;
         return { ...prev, [mid]: loaded };
       });
     } catch (e) {
